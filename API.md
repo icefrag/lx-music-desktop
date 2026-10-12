@@ -16,7 +16,7 @@
 | 语义 | 说明 |
 |---|---|
 | **指令类端点**（播放控制、下载、打开歌单） | fire-and-forget：`200 OK` 只代表指令已派发，不代表执行结果。失败会体现在应用界面（错误弹窗 / 下载列表任务状态），HTTP 侧仍返回 200 |
-| **数据类端点**（`/songlist`、`/status` 等） | 响应体返回 JSON，出错时返回对应错误码 |
+| **数据类端点**（`/songlist`、`/status`、`/download-status` 等） | 响应体返回 JSON，出错时返回对应错误码 |
 
 错误码：`400` 参数缺失或非法；`401` 未知路径；`500` 音源报错（JSON 带 `error` 字段）；`504` 数据请求超时。
 
@@ -124,6 +124,46 @@ GET /download-music?source=kw&name=晴天&singer=周杰伦&songmid=228908&qualit
 
 kw / wy 源只需基础字段。
 
+### GET /download-status —— 下载任务状态查询
+
+查询下载任务的状态、失败原因与落盘路径，供调用方**轮询对账**。数据来自应用内实时落库的下载记录，无需渲染进程参与。
+
+```
+GET /download-status?songmids=7214800,228908&source=kw
+```
+
+| 参数 | 必填 | 说明 |
+|---|---|---|
+| `songmids` | 否 | 逗号分隔的曲目唯一 id，只返回这批任务；不传返回全部下载任务 |
+| `source` | 否 | 进一步按音源收窄（不同源的 songmid 理论上可能重号，跨源查询时建议带上） |
+
+响应示例（截断）：
+
+```json
+{
+  "list": [
+    {
+      "songmid": "7214800", "source": "kw", "name": "小半", "singer": "陈粒",
+      "status": "completed", "statusText": "",
+      "fileName": "小半 - 陈粒.mp3", "filePath": "D:\\Music\\pick\\小半 - 陈粒.mp3",
+      "quality": "320k", "ext": "mp3", "progress": 100, "downloaded": 8493462, "total": 8493462
+    },
+    {
+      "songmid": "228908", "source": "kw", "name": "晴天", "singer": "周杰伦",
+      "status": "error", "statusText": "获取音乐链接失败",
+      "fileName": "晴天 - 周杰伦.mp3", "filePath": "",
+      "quality": "128k", "ext": "mp3", "progress": 0, "downloaded": 0, "total": 0
+    }
+  ]
+}
+```
+
+- `status` 取值：`run`（下载中）/ `waiting`（排队）/ `pause`（暂停）/ `error`（失败）/ `completed`（完成）；`statusText` 是失败原因
+- **查不到的 songmid 不会出现在响应里** = 没有对应任务（例如 songmid 未命中歌单被忽略）
+- 同一 `songmid` 可能对应多条记录（同一首歌以不同音质建过多个任务），对账时可结合 `quality` 区分
+- 轮询建议：发起下载后每 1~2 秒查询一次，直到目标 songmid 全部到达终态（completed / error）即结束
+- 用户在应用内删除/清空下载列表后对应任务即查不到——看到终态后请调用方自行记录结果
+
 ### GET /open-songlist —— 打开歌单
 
 让应用界面跳转到指定歌单详情页并加载内容（纯界面动作，不返回数据）。
@@ -141,6 +181,9 @@ curl "http://127.0.0.1:23330/songlist?source=kw&id=3713111889"
 # 2. 从响应 list 中挑出想要的 songmid，例如 7214800、228908、386305156
 # 3. 一次调用批量下载到指定目录
 curl "http://127.0.0.1:23330/download-songlist?source=kw&id=3713111889&songmids=7214800,228908,386305156&quality=320k&dir=D%3A%5CMusic%5Cpick"
+
+# 4. 轮询任务结果，直到全部到达终态（completed / error）
+curl "http://127.0.0.1:23330/download-status?songmids=7214800,228908,386305156&source=kw"
 
 # 整单下载前 200 首
 curl "http://127.0.0.1:23330/download-songlist?source=kw&id=3713111889&limit=200"

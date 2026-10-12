@@ -91,6 +91,35 @@ const handleSonglistRequest = async(res: http.ServerResponse<http.IncomingMessag
   }
 }
 
+/**
+ * 下载任务状态查询：直读 dbService 的下载列表（任务状态实时落库），供调用方轮询对账
+ */
+const handleDownloadStatus = async(res: http.ServerResponse<http.IncomingMessage>, query?: string) => {
+  const { songmids, source } = querystring.parse(query ?? '')
+  const tasks = await global.lx.worker.dbService.getDownloadList()
+  let list = tasks.map(item => ({
+    songmid: String(item.metadata.musicInfo.meta.songId),
+    source: item.metadata.musicInfo.source,
+    name: item.metadata.musicInfo.name,
+    singer: item.metadata.musicInfo.singer,
+    status: item.status,
+    statusText: item.statusText,
+    fileName: item.metadata.fileName,
+    filePath: item.metadata.filePath,
+    quality: item.metadata.quality,
+    ext: item.metadata.ext,
+    progress: item.progress,
+    downloaded: item.downloaded,
+    total: item.total,
+  }))
+  if (typeof songmids == 'string' && songmids) {
+    const idSet = new Set(songmids.split(',').map(sid => sid.trim()).filter(Boolean))
+    list = list.filter(item => idSet.has(item.songmid))
+  }
+  if (typeof source == 'string' && source) list = list.filter(item => item.source == source)
+  sendResponse(res, 200, { list }, 'application/json; charset=utf-8')
+}
+
 const handleStartServer = async(port: number, ip: string) => new Promise<void>((resolve, reject) => {
   playerStatusKeys = Object.keys(global.lx.player_status) as SubscribeKeys[]
   httpServer = http.createServer((req, res): void => {
@@ -254,6 +283,10 @@ const handleStartServer = async(port: number, ip: string) => new Promise<void>((
         if (typeof dir == 'string' && dir) data.dir = dir
         global.lx.event_app.deeplink(`lxmusic://music/download?data=${encodeURIComponent(JSON.stringify(data))}`)
         break
+      }
+      case '/download-status': {
+        void handleDownloadStatus(res, query)
+        return
       }
       case '/mute': {
         const mute = querystring.parse(query ?? '').mute
