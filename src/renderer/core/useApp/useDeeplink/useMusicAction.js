@@ -5,12 +5,13 @@ import { decodeName } from '@renderer/utils'
 import { playMusicInfo, isShowPlayerDetail } from '@renderer/store/player/state'
 import { setShowPlayerDetail, addTempPlayList } from '@renderer/store/player/action'
 
-import { dataVerify, qualityFilter, sources } from './utils'
+import { dataVerify, qualityFilter, qualitys, sources } from './utils'
 import { focusWindow } from '@renderer/utils/ipc'
 import { playNext } from '@renderer/core/player/action'
 import { toNewMusicInfo } from '@common/utils/tools'
 import { LIST_IDS } from '@common/constants'
 import { getOtherSource } from '@renderer/core/music/utils'
+import { createDownloadTasks } from '@renderer/store/download/action'
 
 const useSearchMusic = () => {
   const router = useRouter()
@@ -52,91 +53,91 @@ const useSearchMusic = () => {
   }
 }
 
-const usePlayMusic = () => {
-  const filterInfoByPlayMusic = musicInfo => {
-    switch (musicInfo.source) {
-      case 'kw':
-        musicInfo = dataVerify([
-          { key: 'name', types: ['string'], required: true, max: 200 },
-          { key: 'singer', types: ['string'], required: true, max: 200 },
-          { key: 'source', types: ['string'], required: true },
-          { key: 'songmid', types: ['string', 'number'], max: 64, required: true },
-          { key: 'img', types: ['string'], max: 1024 },
-          { key: 'albumId', types: ['string', 'number'], max: 64 },
-          { key: 'interval', types: ['string'], max: 64 },
-          { key: 'albumName', types: ['string'], max: 200 },
-          { key: 'types', types: ['object'], required: true },
-        ], musicInfo)
-        break
-      case 'kg':
-        musicInfo = dataVerify([
-          { key: 'name', types: ['string'], required: true, max: 200 },
-          { key: 'singer', types: ['string'], required: true, max: 200 },
-          { key: 'source', types: ['string'], required: true },
-          { key: 'songmid', types: ['string', 'number'], max: 64, required: true },
-          { key: 'img', types: ['string'], max: 1024 },
-          { key: 'albumId', types: ['string', 'number'], max: 64 },
-          { key: 'interval', types: ['string'], max: 64 },
-          { key: '_interval', types: ['number'], max: 64 },
-          { key: 'albumName', types: ['string'], max: 200 },
-          { key: 'types', types: ['object'], required: true },
+const filterInfoByPlayMusic = musicInfo => {
+  switch (musicInfo.source) {
+    case 'kw':
+      musicInfo = dataVerify([
+        { key: 'name', types: ['string'], required: true, max: 200 },
+        { key: 'singer', types: ['string'], required: true, max: 200 },
+        { key: 'source', types: ['string'], required: true },
+        { key: 'songmid', types: ['string', 'number'], max: 64, required: true },
+        { key: 'img', types: ['string'], max: 1024 },
+        { key: 'albumId', types: ['string', 'number'], max: 64 },
+        { key: 'interval', types: ['string'], max: 64 },
+        { key: 'albumName', types: ['string'], max: 200 },
+        { key: 'types', types: ['object'], required: true },
+      ], musicInfo)
+      break
+    case 'kg':
+      musicInfo = dataVerify([
+        { key: 'name', types: ['string'], required: true, max: 200 },
+        { key: 'singer', types: ['string'], required: true, max: 200 },
+        { key: 'source', types: ['string'], required: true },
+        { key: 'songmid', types: ['string', 'number'], max: 64, required: true },
+        { key: 'img', types: ['string'], max: 1024 },
+        { key: 'albumId', types: ['string', 'number'], max: 64 },
+        { key: 'interval', types: ['string'], max: 64 },
+        { key: '_interval', types: ['number'], max: 64 },
+        { key: 'albumName', types: ['string'], max: 200 },
+        { key: 'types', types: ['object'], required: true },
 
-          { key: 'hash', types: ['string'], required: true, max: 64 },
-        ], musicInfo)
-        break
-      case 'tx':
-        musicInfo = dataVerify([
-          { key: 'name', types: ['string'], required: true, max: 200 },
-          { key: 'singer', types: ['string'], required: true, max: 200 },
-          { key: 'source', types: ['string'], required: true },
-          { key: 'songmid', types: ['string', 'number'], max: 64, required: true },
-          { key: 'img', types: ['string'], max: 1024 },
-          { key: 'albumId', types: ['string', 'number'], max: 64 },
-          { key: 'interval', types: ['string'], max: 64 },
-          { key: 'albumName', types: ['string'], max: 200 },
-          { key: 'types', types: ['object'], required: true },
+        { key: 'hash', types: ['string'], required: true, max: 64 },
+      ], musicInfo)
+      break
+    case 'tx':
+      musicInfo = dataVerify([
+        { key: 'name', types: ['string'], required: true, max: 200 },
+        { key: 'singer', types: ['string'], required: true, max: 200 },
+        { key: 'source', types: ['string'], required: true },
+        { key: 'songmid', types: ['string', 'number'], max: 64, required: true },
+        { key: 'img', types: ['string'], max: 1024 },
+        { key: 'albumId', types: ['string', 'number'], max: 64 },
+        { key: 'interval', types: ['string'], max: 64 },
+        { key: 'albumName', types: ['string'], max: 200 },
+        { key: 'types', types: ['object'], required: true },
 
-          { key: 'strMediaMid', types: ['string'], required: true, max: 64 },
-          { key: 'albumMid', types: ['string'], max: 64 },
-        ], musicInfo)
-        break
-      case 'wy':
-        musicInfo = dataVerify([
-          { key: 'name', types: ['string'], required: true, max: 200 },
-          { key: 'singer', types: ['string'], required: true, max: 200 },
-          { key: 'source', types: ['string'], required: true },
-          { key: 'songmid', types: ['string', 'number'], max: 64, required: true },
-          { key: 'img', types: ['string'], max: 1024 },
-          { key: 'albumId', types: ['string', 'number'], max: 64 },
-          { key: 'interval', types: ['string'], max: 64 },
-          { key: 'albumName', types: ['string'], max: 200 },
-          { key: 'types', types: ['object'], required: true },
-        ], musicInfo)
-        break
-      case 'mg':
-        musicInfo = dataVerify([
-          { key: 'name', types: ['string'], required: true, max: 200 },
-          { key: 'singer', types: ['string'], required: true, max: 200 },
-          { key: 'source', types: ['string'], required: true },
-          { key: 'songmid', types: ['string', 'number'], max: 64, required: true },
-          { key: 'img', types: ['string'], max: 1024 },
-          { key: 'albumId', types: ['string', 'number'], max: 64 },
-          { key: 'interval', types: ['string'], max: 64 },
-          { key: 'albumName', types: ['string'], max: 200 },
-          { key: 'types', types: ['object'], required: true },
+        { key: 'strMediaMid', types: ['string'], required: true, max: 64 },
+        { key: 'albumMid', types: ['string'], max: 64 },
+      ], musicInfo)
+      break
+    case 'wy':
+      musicInfo = dataVerify([
+        { key: 'name', types: ['string'], required: true, max: 200 },
+        { key: 'singer', types: ['string'], required: true, max: 200 },
+        { key: 'source', types: ['string'], required: true },
+        { key: 'songmid', types: ['string', 'number'], max: 64, required: true },
+        { key: 'img', types: ['string'], max: 1024 },
+        { key: 'albumId', types: ['string', 'number'], max: 64 },
+        { key: 'interval', types: ['string'], max: 64 },
+        { key: 'albumName', types: ['string'], max: 200 },
+        { key: 'types', types: ['object'], required: true },
+      ], musicInfo)
+      break
+    case 'mg':
+      musicInfo = dataVerify([
+        { key: 'name', types: ['string'], required: true, max: 200 },
+        { key: 'singer', types: ['string'], required: true, max: 200 },
+        { key: 'source', types: ['string'], required: true },
+        { key: 'songmid', types: ['string', 'number'], max: 64, required: true },
+        { key: 'img', types: ['string'], max: 1024 },
+        { key: 'albumId', types: ['string', 'number'], max: 64 },
+        { key: 'interval', types: ['string'], max: 64 },
+        { key: 'albumName', types: ['string'], max: 200 },
+        { key: 'types', types: ['object'], required: true },
 
-          { key: 'copyrightId', types: ['string', 'number'], required: true, max: 64 },
-          { key: 'lrcUrl', types: ['string'], max: 1024 },
-          { key: 'trcUrl', types: ['string'], max: 1024 },
-          { key: 'mrcUrl', types: ['string'], max: 1024 },
-        ], musicInfo)
-        break
-      default: throw new Error('Unknown source: ' + musicInfo.source)
-    }
-    musicInfo.types = qualityFilter(musicInfo.source, musicInfo.types)
-    return musicInfo
+        { key: 'copyrightId', types: ['string', 'number'], required: true, max: 64 },
+        { key: 'lrcUrl', types: ['string'], max: 1024 },
+        { key: 'trcUrl', types: ['string'], max: 1024 },
+        { key: 'mrcUrl', types: ['string'], max: 1024 },
+      ], musicInfo)
+      break
+    default: throw new Error('Unknown source: ' + musicInfo.source)
   }
+  musicInfo.types = qualityFilter(musicInfo.source, musicInfo.types)
+  return musicInfo
+}
 
+const usePlayMusic = () => {
   return ({ data: _musicInfo }) => {
     _musicInfo = filterInfoByPlayMusic(_musicInfo)
 
@@ -157,6 +158,32 @@ const usePlayMusic = () => {
     const isPlaying = !!playMusicInfo.musicInfo
     addTempPlayList([{ listId: LIST_IDS.PLAY_LATER, musicInfo, isTop: true }])
     if (isPlaying) playNext()
+  }
+}
+
+
+const useDownloadMusic = () => {
+  return async({ data }) => {
+    const quality = qualitys.includes(data.quality) ? data.quality : '320k'
+    const dir = typeof data.dir == 'string' && data.dir ? data.dir : undefined
+    const _musicInfo = filterInfoByPlayMusic(data)
+
+    let musicInfo = {
+      ..._musicInfo,
+      singer: decodeName(_musicInfo.singer),
+      name: decodeName(_musicInfo.name),
+      albumName: decodeName(_musicInfo.albumName),
+      otherSource: null,
+      _types: {},
+      typeUrl: {},
+    }
+    for (const type of musicInfo.types) {
+      musicInfo._types[type.type] = { size: type.size }
+    }
+    musicInfo = toNewMusicInfo(musicInfo)
+    markRaw(musicInfo)
+    await createDownloadTasks([musicInfo], quality, undefined, dir)
+    focusWindow()
   }
 }
 
@@ -220,6 +247,7 @@ export default () => {
   const handleSearchMusic = useSearchMusic()
   const handlePlayMusic = usePlayMusic()
   const handleSearchPlayMusic = useSearchPlayMusic()
+  const handleDownloadMusic = useDownloadMusic()
 
 
   return async(action, info) => {
@@ -232,6 +260,9 @@ export default () => {
         break
       case 'searchPlay':
         await handleSearchPlayMusic(info)
+        break
+      case 'download':
+        await handleDownloadMusic(info)
         break
       default: throw new Error('Unknown action: ' + action)
     }

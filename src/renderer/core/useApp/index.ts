@@ -11,6 +11,7 @@ import useDataInit from './useDataInit'
 import useHandleEnvParams from './useHandleEnvParams'
 import useEventListener from './useEventListener'
 import useDeeplink from './useDeeplink'
+import useOpenApiData from './useOpenApiData'
 import usePlayer from './usePlayer'
 import useSettingSync from './useSettingSync'
 import { useRouter } from '@common/utils/vueRouter'
@@ -30,6 +31,7 @@ export default () => {
   const initOpenAPI = useOpenAPI()
   const initStatusbarLyric = useStatusbarLyric()
   useEventListener()
+  useOpenApiData()
   const initPlayer = usePlayer()
   const handleEnvParams = useHandleEnvParams()
   const initData = useDataInit()

@@ -213,6 +213,7 @@ tables.set('download_list', `
     "ext" TEXT NOT NULL,
     "fileName" TEXT NOT NULL,
     "filePath" TEXT NOT NULL,
+    "savePath" TEXT,
     "musicInfo" TEXT NOT NULL,
     "position" INTEGER NOT NULL,
     PRIMARY KEY("id")
@@ -228,4 +229,4 @@ tables.set('dislike_list', `
 
 export default tables
 
-export const DB_VERSION = '2'
+export const DB_VERSION = '3'

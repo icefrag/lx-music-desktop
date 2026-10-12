@@ -5,6 +5,8 @@ import { clipFileNameLength } from '@common/utils/tools'
 import { joinPath } from '@common/utils/nodejs'
 
 export const buildSavePath = (musicInfo: LX.Download.ListItem) => {
+  // 逐任务自定义目录（开放 API 下载端点的 dir 参数），优先于全局设置
+  if (musicInfo.metadata.savePath) return musicInfo.metadata.savePath
   let savePath = appSetting['download.savePath']
   if (appSetting['download.isSavePathGroupByListName']) {
     let dirName: string | undefined

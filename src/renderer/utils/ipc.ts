@@ -73,6 +73,34 @@ export const onDeeplink = (listener: LX.IpcRendererEventListenerParams<string>):
   }
 }
 
+export interface OpenApiSonglistRequest {
+  requestKey: string
+  source: string
+  id: string
+}
+export interface OpenApiSonglistData {
+  source: string
+  id: string
+  info: Record<string, unknown>
+  total: number
+  limit: number
+  list: Array<Record<string, unknown>>
+}
+export interface OpenApiSonglistResponse {
+  requestKey: string
+  data?: OpenApiSonglistData
+  error?: string
+}
+export const onOpenApiSonglistRequest = (listener: LX.IpcRendererEventListenerParams<OpenApiSonglistRequest>): RemoveListener => {
+  rendererOn(WIN_MAIN_RENDERER_EVENT_NAME.open_api_songlist_request, listener)
+  return () => {
+    rendererOff(WIN_MAIN_RENDERER_EVENT_NAME.open_api_songlist_request, listener)
+  }
+}
+export const sendOpenApiSonglistResponse = (params: OpenApiSonglistResponse) => {
+  rendererSend(WIN_MAIN_RENDERER_EVENT_NAME.open_api_songlist_response, params)
+}
+
 export const checkUpdate = () => {
   rendererSend(WIN_MAIN_RENDERER_EVENT_NAME.update_check)
 }

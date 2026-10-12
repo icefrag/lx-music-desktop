@@ -17,6 +17,7 @@ export * from './hotKey'
 export * from './userApi'
 export * from './sync'
 export * from './process'
+export * from './openAPI'
 
 let isInitialized = false
 export default () => {

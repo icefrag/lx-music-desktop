@@ -23,6 +23,7 @@ const toDBDownloadInfo = (musicInfos: LX.Download.ListItem[], offset: number = 0
       ext: info.metadata.ext,
       fileName: info.metadata.fileName,
       filePath: info.metadata.filePath,
+      savePath: info.metadata.savePath ?? null,
       musicInfo: JSON.stringify(info.metadata.musicInfo),
       position: offset + index,
     }
@@ -49,6 +50,7 @@ const initDownloadList = () => {
         ext: item.ext,
         fileName: item.fileName,
         filePath: item.filePath,
+        savePath: item.savePath ?? undefined,
       },
     }
   })

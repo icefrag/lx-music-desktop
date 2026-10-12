@@ -3,8 +3,10 @@ import { isShowPlayerDetail } from '@renderer/store/player/state'
 import { setShowPlayerDetail } from '@renderer/store/player/action'
 import usePlaySonglist from '../compositions/usePlaySonglist'
 import { focusWindow } from '@renderer/utils/ipc'
+import { getListDetailAll } from '@renderer/store/songList/action'
+import { createDownloadTasks } from '@renderer/store/download/action'
 
-import { dataVerify, sourceVerify } from './utils'
+import { dataVerify, qualitys, sourceVerify } from './utils'
 
 const useOpenSonglist = () => {
   const router = useRouter()
@@ -94,9 +96,37 @@ const usePlaySonglistDetail = () => {
   }
 }
 
+const useDownloadSonglist = () => {
+  return async({ data }) => {
+    const info = dataVerify([
+      { key: 'source', types: ['string'], required: true },
+      { key: 'id', types: ['string', 'number'], required: true, max: 500 },
+      { key: 'quality', types: ['string'], max: 10 },
+      { key: 'songmids', types: ['object'] },
+      { key: 'limit', types: ['number'] },
+      { key: 'dir', types: ['string'], max: 500 },
+    ], data)
+
+    sourceVerify(info.source)
+
+    const quality = qualitys.includes(info.quality) ? info.quality : '320k'
+    let list = await getListDetailAll(String(info.id), info.source)
+    if (info.songmids?.length) {
+      // 按调用方提供的曲目唯一 id 精确筛选，未命中的忽略
+      const idSet = new Set(info.songmids.map(m => String(m)))
+      list = list.filter(m => idSet.has(String(m.meta.songId)))
+    } else if (info.limit > 0) {
+      list = list.slice(0, info.limit)
+    }
+    if (list.length) await createDownloadTasks(list, quality, undefined, info.dir)
+    focusWindow()
+  }
+}
+
 export default () => {
   const handleOpenSonglist = useOpenSonglist()
   const handlePlaySonglist = usePlaySonglistDetail()
+  const handleDownloadSonglist = useDownloadSonglist()
 
 
   return async(action, info) => {
@@ -106,6 +136,9 @@ export default () => {
         break
       case 'play':
         await handlePlaySonglist(info)
+        break
+      case 'download':
+        await handleDownloadSonglist(info)
         break
       default: throw new Error('Unknown action: ' + action)
     }

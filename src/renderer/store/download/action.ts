@@ -353,13 +353,17 @@ const filterTask = (list: LX.Download.ListItem[]) => {
  * 创建下载任务
  * @param list 要下载的歌曲
  * @param quality 下载音质
+ * @param savePath 可选的逐任务保存目录，缺省用全局下载目录设置
  */
-export const createDownloadTasks = async(list: LX.Music.MusicInfoOnline[], quality: LX.Quality, listId?: string) => {
+export const createDownloadTasks = async(list: LX.Music.MusicInfoOnline[], quality: LX.Quality, listId?: string, savePath?: string) => {
   if (!list.length) return
   const tasks = filterTask(await window.lx.worker.download.createDownloadTasks(list, quality,
     appSetting['download.fileName'],
     toRaw(qualityList.value), listId),
   )
+  if (savePath) {
+    for (const task of tasks) task.metadata.savePath = savePath
+  }
 
   if (tasks.length) await addTasks(tasks)
   void checkStartTask()

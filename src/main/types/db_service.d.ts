@@ -70,6 +70,7 @@ declare namespace LX {
       ext: LX.Download.FileExt
       fileName: string
       filePath: string
+      savePath: string | null
       musicInfo: string
       position: number
     }

@@ -2,7 +2,7 @@ import http from 'node:http'
 import querystring from 'node:querystring'
 import type { Socket } from 'node:net'
 import { getAddress } from '@common/utils/nodejs'
-import { sendTaskbarButtonClick } from '@main/modules/winMain'
+import { sendTaskbarButtonClick, requestSonglist } from '@main/modules/winMain'
 
 const sendResponse = (res: http.ServerResponse, code = 200, msg: string | Record<any, unknown> = 'OK', contentType = 'text/plain; charset=utf-8') => {
   res.writeHead(code, {
@@ -79,6 +79,15 @@ const handleSubscribePlayerStatus = (req: http.IncomingMessage, res: http.Server
     if (!keys.includes(k as SubscribeKeys)) continue
     res.write(`event: ${k}\n`)
     res.write(`data: ${JSON.stringify(v)}\n\n`)
+  }
+}
+
+const handleSonglistRequest = async(res: http.ServerResponse<http.IncomingMessage>, source: string, id: string) => {
+  try {
+    const data = await requestSonglist(source, id)
+    sendResponse(res, 200, data as unknown as Record<any, unknown>, 'application/json; charset=utf-8')
+  } catch (err: any) {
+    sendResponse(res, err.message == 'request timeout' ? 504 : 500, { error: err.message }, 'application/json; charset=utf-8')
   }
 }
 
@@ -178,6 +187,72 @@ const handleStartServer = async(port: number, ip: string) => new Promise<void>((
         } else {
           sendTaskbarButtonClick('volume', volume / 100)
         }
+        break
+      }
+      case '/open-songlist': {
+        const { source, id } = querystring.parse(query ?? '')
+        if (!source || !id) {
+          code = 400
+          msg = 'Invalid params: source and id required'
+        } else {
+          // 走 deeplink path 段传值，规避解析器不解码 query 值的问题
+          global.lx.event_app.deeplink(`lxmusic://songlist/open/${source as string}/${encodeURIComponent(id as string)}`)
+        }
+        break
+      }
+      case '/songlist': {
+        const { source, id } = querystring.parse(query ?? '')
+        if (!source || !id) {
+          code = 400
+          msg = 'Invalid params: source and id required'
+          break
+        }
+        void handleSonglistRequest(res, source as string, id as string)
+        return
+      }
+      case '/download-songlist': {
+        const { source, id, songmids, quality, limit, dir } = querystring.parse(query ?? '')
+        if (!source || !id) {
+          code = 400
+          msg = 'Invalid params: source and id required'
+          break
+        }
+        const data: Record<string, unknown> = {
+          source,
+          id,
+          quality: typeof quality == 'string' && quality ? quality : '320k',
+        }
+        if (typeof songmids == 'string' && songmids) data.songmids = songmids.split(',').map(sid => sid.trim()).filter(Boolean)
+        const limitNum = parseInt(limit as string)
+        if (!Number.isNaN(limitNum) && limitNum > 0) data.limit = limitNum
+        if (typeof dir == 'string' && dir) data.dir = dir
+        global.lx.event_app.deeplink(`lxmusic://songlist/download?data=${encodeURIComponent(JSON.stringify(data))}`)
+        break
+      }
+      case '/download-music': {
+        const { source, name, singer, songmid, albumName, interval, quality, hash, copyrightId, strMediaMid, dir } = querystring.parse(query ?? '')
+        if (!source || !name || !singer || !songmid) {
+          code = 400
+          msg = 'Invalid params: source, name, singer, songmid required'
+          break
+        }
+        const musicInfo: Record<string, unknown> = {
+          name,
+          singer,
+          source,
+          songmid,
+          // qualityFilter 会按源可用性过滤，不可用则回退 128k
+          types: [{ type: quality ?? '320k', size: null, ...(hash ? { hash } : {}) }],
+        }
+        if (albumName) musicInfo.albumName = albumName
+        if (interval) musicInfo.interval = interval
+        if (hash) musicInfo.hash = hash // kg 源必填
+        if (copyrightId) musicInfo.copyrightId = copyrightId // mg 源必填
+        if (strMediaMid) musicInfo.strMediaMid = strMediaMid // tx 源必填
+        const data: Record<string, unknown> = { ...musicInfo }
+        if (typeof quality == 'string' && quality) data.quality = quality
+        if (typeof dir == 'string' && dir) data.dir = dir
+        global.lx.event_app.deeplink(`lxmusic://music/download?data=${encodeURIComponent(JSON.stringify(data))}`)
         break
       }
       case '/mute': {
