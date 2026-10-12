@@ -11,7 +11,7 @@ const defaultSetting: LX.AppSetting = {
   'common.fontSize': 16,
   'common.startInFullscreen': false,
   'common.langId': null,
-  'common.apiSource': 'temp',
+  'common.apiSource': 'user_api_builtin_yehua',
   'common.sourceNameType': 'alias',
   'common.font': '',
   'common.isShowAnimation': true,
@@ -148,7 +148,7 @@ const defaultSetting: LX.AppSetting = {
   'openAPI.enable': false,
   'openAPI.port': '23330',
   'openAPI.bindLan': false,
-  'openAPI.apiSourceAliases': '{}',
+  'openAPI.apiSourceAliases': '{"yehua":"user_api_builtin_yehua","yecao":"user_api_builtin_yecao"}',
 
   // 'theme.id': 'blue_plus',
   'theme.id': 'green',
