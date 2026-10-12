@@ -125,6 +125,7 @@ const setStatus = (downloadInfo: LX.Download.ListItem, status: LX.Download.Downl
   if (downloadInfo.statusText == statusText && downloadInfo.status == status) return
 
   if (status == DOWNLOAD_STATUS.COMPLETED) downloadInfo.isComplate = true
+  if (status != DOWNLOAD_STATUS.ERROR) downloadInfo.errorCode = undefined
   downloadInfo.statusText = statusText
   downloadInfo.status = status
   throttleUpdateTask([downloadInfo])
@@ -248,7 +249,18 @@ const handleRefreshUrl = (downloadInfo: LX.Download.ListItem) => {
       handleError(downloadInfo, err.message)
     })
 }
-const handleError = (downloadInfo: LX.Download.ListItem, message?: string) => {
+// i18n key → 结构化错误码（开放 API /download-status 的 errorCode 字段）
+const ERROR_CODE_MAP: Record<string, LX.Download.ErrorCode> = {
+  download_status_error_url_failed: 'url_failed',
+  download_status_error_check_path_exist: 'file_exists',
+  download_status_error_check_path: 'check_path',
+  download_status_error_response: 'response',
+  download_status_error_write: 'write',
+}
+const toErrorCode = (i18nKey?: string): LX.Download.ErrorCode => ERROR_CODE_MAP[i18nKey ?? ''] ?? 'unknown'
+
+const handleError = (downloadInfo: LX.Download.ListItem, message?: string, errorCode: LX.Download.ErrorCode = 'unknown') => {
+  downloadInfo.errorCode = errorCode
   setStatus(downloadInfo, DOWNLOAD_STATUS.ERROR, message)
   void window.lx.worker.download.removeTask(downloadInfo.id)
   runingTask.delete(downloadInfo.id)
@@ -260,7 +272,7 @@ const handleStartTask = async(downloadInfo: LX.Download.ListItem) => {
     setStatusText(downloadInfo, window.i18n.t('download_status_url_getting'))
     const url = await getUrl(downloadInfo)
     if (!url) {
-      handleError(downloadInfo, window.i18n.t('download_status_error_url_failed'))
+      handleError(downloadInfo, window.i18n.t('download_status_error_url_failed'), 'url_failed')
       return
     }
     setUrl(downloadInfo, url)
@@ -301,6 +313,7 @@ const handleStartTask = async(downloadInfo: LX.Download.ListItem) => {
         handleError(downloadInfo, event.data.error
           ? window.i18n.t(event.data.error) + (event.data.message ?? '')
           : event.data.message,
+        toErrorCode(event.data.error),
         )
         break
       default:

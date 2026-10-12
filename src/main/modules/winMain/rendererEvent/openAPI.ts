@@ -41,7 +41,7 @@ export const requestSonglist = async(source: string, id: string): Promise<Songli
     if (!requestQueue.has(requestKey)) return
     requestQueue.delete(requestKey)
     reject(new Error('request timeout'))
-  }, 20000)
+  }, 60000)
   sendEvent<SonglistRequestParams>(WIN_MAIN_RENDERER_EVENT_NAME.open_api_songlist_request, {
     requestKey,
     source,

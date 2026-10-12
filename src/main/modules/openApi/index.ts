@@ -104,6 +104,7 @@ const handleDownloadStatus = async(res: http.ServerResponse<http.IncomingMessage
     singer: item.metadata.musicInfo.singer,
     status: item.status,
     statusText: item.statusText,
+    errorCode: item.errorCode ?? null,
     fileName: item.metadata.fileName,
     filePath: item.metadata.filePath,
     quality: item.metadata.quality,

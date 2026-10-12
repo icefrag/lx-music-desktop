@@ -16,6 +16,13 @@ declare global {
 
       type FileExt = 'mp3' | 'flac' | 'wav' | 'ape'
 
+      type ErrorCode = 'url_failed'
+      | 'file_exists'
+      | 'check_path'
+      | 'response'
+      | 'write'
+      | 'unknown'
+
       interface ProgressInfo {
         progress: number
         speed: string
@@ -47,6 +54,7 @@ declare global {
         isComplate: boolean
         status: DownloadTaskStatus
         statusText: string
+        errorCode?: ErrorCode
         downloaded: number
         total: number
         progress: number

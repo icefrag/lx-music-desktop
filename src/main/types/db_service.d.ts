@@ -63,6 +63,7 @@ declare namespace LX {
       isComplate: 0 | 1
       status: LX.Download.DownloadTaskStatus
       statusText: string
+      errorCode: string | null
       progress_downloaded: number
       progress_total: number
       url: string | null

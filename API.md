@@ -76,7 +76,7 @@ GET /songlist?source=kw&id=<歌单ID或完整链接>
 
 - 每首曲目平铺了 **`songmid`** 字段——这就是下载端点的筛选契约，请把它原样（或 `String()` 后）传给 `/download-songlist`
 - `songmid` 可能是数字或字符串（取决于源），比较时建议统一转字符串
-- 大歌单内部会分页拉全后合并去重；单请求最长等待 20 秒，超时返回 `504`
+- 大歌单内部会分页拉全后合并去重；单请求最长等待 60 秒（超时返回 `504`，拉取会在应用侧继续并缓存，重试很快）
 - 结果存在应用内存缓存中，应用重启后失效
 
 ### GET /download-songlist —— 歌单下载
@@ -150,7 +150,7 @@ GET /download-status?songmids=7214800,228908&source=kw
     },
     {
       "songmid": "228908", "source": "kw", "name": "晴天", "singer": "周杰伦",
-      "status": "error", "statusText": "获取音乐链接失败",
+      "status": "error", "statusText": "获取音乐链接失败", "errorCode": "url_failed",
       "fileName": "晴天 - 周杰伦.mp3", "filePath": "",
       "quality": "128k", "ext": "mp3", "progress": 0, "downloaded": 0, "total": 0
     }
@@ -159,6 +159,16 @@ GET /download-status?songmids=7214800,228908&source=kw
 ```
 
 - `status` 取值：`run`（下载中）/ `waiting`（排队）/ `pause`（暂停）/ `error`（失败）/ `completed`（完成）；`statusText` 是失败原因
+- `errorCode` 是与 `statusText` 并存的结构化错误码，供程序化归类（升级前的老任务为 `null`）：
+
+| errorCode | 含义 |
+|---|---|
+| `url_failed` | 获取音乐链接失败（含歌曲下架、当前音源不支持该音乐源——应用层无法进一步区分） |
+| `file_exists` | 「跳过已存在文件」命中，文件已存在 |
+| `check_path` | 保存目录检查失败 |
+| `response` | 下载中网络/响应错误 |
+| `write` | 文件写入失败 |
+| `unknown` | 其他未分类错误 |
 - **查不到的 songmid 不会出现在响应里** = 没有对应任务（例如 songmid 未命中歌单被忽略）
 - 同一 `songmid` 可能对应多条记录（同一首歌以不同音质建过多个任务），对账时可结合 `quality` 区分
 - 轮询建议：发起下载后每 1~2 秒查询一次，直到目标 songmid 全部到达终态（completed / error）即结束

@@ -206,6 +206,7 @@ tables.set('download_list', `
     "isComplate" INTEGER NOT NULL,
     "status" TEXT NOT NULL,
     "statusText" TEXT NOT NULL,
+    "errorCode" TEXT,
     "progress_downloaded" INTEGER NOT NULL,
     "progress_total" INTEGER NOT NULL,
     "url" TEXT,
@@ -229,4 +230,4 @@ tables.set('dislike_list', `
 
 export default tables
 
-export const DB_VERSION = '3'
+export const DB_VERSION = '4'

@@ -41,6 +41,12 @@ const migrateV2 = (db: Database.Database) => {
   if (!existsCol) db.exec('ALTER TABLE "main"."download_list" ADD COLUMN "savePath" TEXT;')
 }
 
+const migrateV3 = (db: Database.Database) => {
+  // download_list 增加结构化错误码（开放 API /download-status 的 errorCode 字段）
+  const existsCol = db.prepare('SELECT name FROM pragma_table_info(\'download_list\') WHERE name = \'errorCode\'').get()
+  if (!existsCol) db.exec('ALTER TABLE "main"."download_list" ADD COLUMN "errorCode" TEXT;')
+}
+
 export default (db: Database.Database) => {
   // PRAGMA user_version = x
   // console.log(db.prepare('PRAGMA user_version').get().user_version)
@@ -52,6 +58,9 @@ export default (db: Database.Database) => {
       // falls through
     case '2':
       migrateV2(db)
+      // falls through
+    case '3':
+      migrateV3(db)
       db.prepare('UPDATE "main"."db_info" SET "field_value"=@value WHERE "field_name"=@name').run({ name: 'version', value: DB_VERSION })
       break
   }
