@@ -166,7 +166,12 @@ const useDownloadMusic = () => {
   return async({ data }) => {
     const quality = qualitys.includes(data.quality) ? data.quality : '320k'
     const dir = typeof data.dir == 'string' && data.dir ? data.dir : undefined
-    const _musicInfo = filterInfoByPlayMusic(data)
+    // 用规范化后的音质重建 types，避免非法值被 qualityFilter 过滤为空导致任务失败（保留 kg 源的 hash）
+    const originType = data.types?.[0]
+    const _musicInfo = filterInfoByPlayMusic({
+      ...data,
+      types: [{ type: quality, size: originType?.size ?? null, ...(originType?.hash ? { hash: originType.hash } : {}) }],
+    })
 
     let musicInfo = {
       ..._musicInfo,
