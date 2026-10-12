@@ -246,7 +246,7 @@ const handleRefreshUrl = (downloadInfo: LX.Download.ListItem) => {
     })
     .catch(err => {
       console.log(err)
-      handleError(downloadInfo, err.message)
+      handleError(downloadInfo, err.message, 'url_failed')
     })
 }
 // i18n key → 结构化错误码（开放 API /download-status 的 errorCode 字段）
@@ -329,8 +329,11 @@ const startTask = async(downloadInfo: LX.Download.ListItem) => {
 
 const getStartTask = (list: LX.Download.ListItem[]): LX.Download.ListItem | null => {
   let downloadCount = 0
+  // 当前音源是用户音源且脚本未就绪时，排队任务一律挂起，避免启动即失败
+  const sourceNotReady = apiSource.value?.startsWith('user_api') == true && userApi.status !== true
   const waitList = list.filter(item => {
     if (item.status == DOWNLOAD_STATUS.WAITING) {
+      if (sourceNotReady) return false
       // 任务钉住的音源与当前不一致时挂起等待，避免切源后排队的任务拿错音源解析
       const pinned = item.metadata.apiSource
       if (pinned && pinned != apiSource.value && userApi.list.some(api => api.id == pinned)) return false
@@ -367,8 +370,8 @@ const filterTask = (list: LX.Download.ListItem[]) => {
     return true
   })
 }
-// 音源切换完成后重新调度：切回时自动恢复被钉源挂起的任务
-watch(apiSource, () => { void checkStartTask() })
+// 音源切换或脚本就绪状态变化后重新调度：切回时自动恢复被钉源挂起的任务
+watch([apiSource, () => userApi.status], () => { void checkStartTask() })
 
 /**
  * 创建下载任务

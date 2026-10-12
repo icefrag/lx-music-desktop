@@ -97,31 +97,37 @@ const handleSonglistRequest = async(res: http.ServerResponse<http.IncomingMessag
  * 下载任务状态查询：直读 dbService 的下载列表（任务状态实时落库），供调用方轮询对账
  */
 const handleDownloadStatus = async(res: http.ServerResponse<http.IncomingMessage>, query?: string) => {
-  const { songmids, source } = querystring.parse(query ?? '')
-  const tasks = await global.lx.worker.dbService.getDownloadList()
-  let list = tasks.map(item => ({
-    songmid: String(item.metadata.musicInfo.meta.songId),
-    source: item.metadata.musicInfo.source,
-    name: item.metadata.musicInfo.name,
-    singer: item.metadata.musicInfo.singer,
-    status: item.status,
-    statusText: item.statusText,
-    errorCode: item.errorCode ?? null,
-    apiSource: item.metadata.apiSource ?? null,
-    fileName: item.metadata.fileName,
-    filePath: item.metadata.filePath,
-    quality: item.metadata.quality,
-    ext: item.metadata.ext,
-    progress: item.progress,
-    downloaded: item.downloaded,
-    total: item.total,
-  }))
-  if (typeof songmids == 'string' && songmids) {
-    const idSet = new Set(songmids.split(',').map(sid => sid.trim()).filter(Boolean))
-    list = list.filter(item => idSet.has(item.songmid))
+  try {
+    const { songmids, source } = querystring.parse(query ?? '')
+    const idSet = typeof songmids == 'string' && songmids
+      ? new Set(songmids.split(',').map(sid => sid.trim()).filter(Boolean))
+      : null
+    const tasks = (await global.lx.worker.dbService.getDownloadList()).filter(item => {
+      if (idSet && !idSet.has(String(item.metadata.musicInfo.meta.songId))) return false
+      if (typeof source == 'string' && source && item.metadata.musicInfo.source != source) return false
+      return true
+    })
+    const list = tasks.map(item => ({
+      songmid: String(item.metadata.musicInfo.meta.songId),
+      source: item.metadata.musicInfo.source,
+      name: item.metadata.musicInfo.name,
+      singer: item.metadata.musicInfo.singer,
+      status: item.status,
+      statusText: item.statusText,
+      errorCode: item.errorCode ?? null,
+      apiSource: item.metadata.apiSource ?? null,
+      fileName: item.metadata.fileName,
+      filePath: item.metadata.filePath,
+      quality: item.metadata.quality,
+      ext: item.metadata.ext,
+      progress: item.progress,
+      downloaded: item.downloaded,
+      total: item.total,
+    }))
+    sendResponse(res, 200, { list }, 'application/json; charset=utf-8')
+  } catch (err: any) {
+    sendResponse(res, 500, { error: err.message }, 'application/json; charset=utf-8')
   }
-  if (typeof source == 'string' && source) list = list.filter(item => item.source == source)
-  sendResponse(res, 200, { list }, 'application/json; charset=utf-8')
 }
 
 /**
@@ -143,23 +149,30 @@ const handleApiSource = async(res: http.ServerResponse<http.IncomingMessage>, pa
       return aliases[key] != null && apis.some(api => api.id == aliases[key]) ? aliases[key] : undefined
     }
 
-    const set = resolveId(params.set)
-    if (params.set != null && set == null) {
-      sendResponse(res, 400, { error: 'Unknown api source id or alias' }, 'application/json; charset=utf-8')
+    // 先应用别名绑定（同请求内即可用新别名 set），再解析 set
+    // id 显式给出但无法解析 → 400；id 缺省 → 绑到当前音源（当前须为有效音源）
+    const current = global.lx.appSetting['common.apiSource']
+    let bindTarget = resolveId(params.id)
+    if (params.id != null && bindTarget == null) {
+      sendResponse(res, 400, { error: 'Unknown api source id to bind' }, 'application/json; charset=utf-8')
       return
     }
-    const bindTarget = resolveId(params.id) ?? (params.id == null ? global.lx.appSetting['common.apiSource'] : undefined)
+    if (params.id == null) bindTarget = apis.some(api => api.id == current) ? current : undefined
     if (params.alias != null && bindTarget == null) {
       sendResponse(res, 400, { error: 'Unknown api source id to bind' }, 'application/json; charset=utf-8')
       return
     }
-
     const newSetting: Partial<LX.AppSetting> = {}
     if (params.alias != null) {
       aliases[params.alias] = bindTarget!
       newSetting['openAPI.apiSourceAliases'] = JSON.stringify(aliases)
     }
-    if (set != null && global.lx.appSetting['common.apiSource'] != set) newSetting['common.apiSource'] = set
+    const set = resolveId(params.set)
+    if (params.set != null && set == null) {
+      sendResponse(res, 400, { error: 'Unknown api source id or alias' }, 'application/json; charset=utf-8')
+      return
+    }
+    if (set != null && current != set) newSetting['common.apiSource'] = set
     if (Object.keys(newSetting).length) global.lx.event_app.update_config(newSetting)
 
     if (newSetting['common.apiSource'] != null) {
@@ -171,10 +184,11 @@ const handleApiSource = async(res: http.ServerResponse<http.IncomingMessage>, pa
       }
     }
     const aliasOf = (id: string) => Object.keys(aliases).find(key => aliases[key] == id) ?? null
+    // ready = 当前音源的脚本已就绪（apiInfo.id 与当前一致；未加载过脚本时初始状态恒不匹配）
     const status = getUserApiStatus()
     sendResponse(res, 200, {
       current: global.lx.appSetting['common.apiSource'],
-      ready: status.status,
+      ready: status.status == true && status.apiInfo?.id == global.lx.appSetting['common.apiSource'],
       list: apis.map(({ id, name, version, description }) => ({ id, name, version, description, alias: aliasOf(id) })),
     }, 'application/json; charset=utf-8')
   } catch (err: any) {
