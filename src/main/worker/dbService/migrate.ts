@@ -47,6 +47,12 @@ const migrateV3 = (db: Database.Database) => {
   if (!existsCol) db.exec('ALTER TABLE "main"."download_list" ADD COLUMN "errorCode" TEXT;')
 }
 
+const migrateV4 = (db: Database.Database) => {
+  // download_list 增加任务钉住的音源（调度器只启动与当前音源一致的任务）
+  const existsCol = db.prepare('SELECT name FROM pragma_table_info(\'download_list\') WHERE name = \'apiSource\'').get()
+  if (!existsCol) db.exec('ALTER TABLE "main"."download_list" ADD COLUMN "apiSource" TEXT;')
+}
+
 export default (db: Database.Database) => {
   // PRAGMA user_version = x
   // console.log(db.prepare('PRAGMA user_version').get().user_version)
@@ -61,6 +67,9 @@ export default (db: Database.Database) => {
       // falls through
     case '3':
       migrateV3(db)
+      // falls through
+    case '4':
+      migrateV4(db)
       db.prepare('UPDATE "main"."db_info" SET "field_value"=@value WHERE "field_name"=@name').run({ name: 'version', value: DB_VERSION })
       break
   }

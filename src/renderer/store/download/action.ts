@@ -8,10 +8,10 @@ import {
 import {
   downloadList,
 } from './state'
-import { markRaw, toRaw } from '@common/utils/vueTools'
+import { markRaw, toRaw, watch } from '@common/utils/vueTools'
 import { getMusicUrl, getPicUrl, getLyricInfo } from '@renderer/core/music/online'
 import { appSetting } from '../setting'
-import { qualityList } from '..'
+import { apiSource, qualityList, userApi } from '..'
 import { proxyCallback } from '@renderer/worker/utils'
 import { arrPush, arrUnshift, joinPath } from '@renderer/utils'
 import { DOWNLOAD_STATUS } from '@common/constants'
@@ -330,7 +330,12 @@ const startTask = async(downloadInfo: LX.Download.ListItem) => {
 const getStartTask = (list: LX.Download.ListItem[]): LX.Download.ListItem | null => {
   let downloadCount = 0
   const waitList = list.filter(item => {
-    if (item.status == DOWNLOAD_STATUS.WAITING) return true
+    if (item.status == DOWNLOAD_STATUS.WAITING) {
+      // 任务钉住的音源与当前不一致时挂起等待，避免切源后排队的任务拿错音源解析
+      const pinned = item.metadata.apiSource
+      if (pinned && pinned != apiSource.value && userApi.list.some(api => api.id == pinned)) return false
+      return true
+    }
     if (item.status == DOWNLOAD_STATUS.RUN) ++downloadCount
     return false
   })
@@ -362,6 +367,9 @@ const filterTask = (list: LX.Download.ListItem[]) => {
     return true
   })
 }
+// 音源切换完成后重新调度：切回时自动恢复被钉源挂起的任务
+watch(apiSource, () => { void checkStartTask() })
+
 /**
  * 创建下载任务
  * @param list 要下载的歌曲
@@ -374,8 +382,11 @@ export const createDownloadTasks = async(list: LX.Music.MusicInfoOnline[], quali
     appSetting['download.fileName'],
     toRaw(qualityList.value), listId),
   )
-  if (savePath) {
-    for (const task of tasks) task.metadata.savePath = savePath
+  // 钉住创建时的音源，调度器据此决定何时启动该任务
+  const currentApiSource = apiSource.value
+  for (const task of tasks) {
+    if (savePath) task.metadata.savePath = savePath
+    task.metadata.apiSource = currentApiSource ?? undefined
   }
 
   if (tasks.length) await addTasks(tasks)

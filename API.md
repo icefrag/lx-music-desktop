@@ -150,7 +150,7 @@ GET /download-status?songmids=7214800,228908&source=kw
     },
     {
       "songmid": "228908", "source": "kw", "name": "晴天", "singer": "周杰伦",
-      "status": "error", "statusText": "获取音乐链接失败", "errorCode": "url_failed",
+      "status": "error", "statusText": "获取音乐链接失败", "errorCode": "url_failed", "apiSource": "user_api_436_1791810254714",
       "fileName": "晴天 - 周杰伦.mp3", "filePath": "",
       "quality": "128k", "ext": "mp3", "progress": 0, "downloaded": 0, "total": 0
     }
@@ -171,8 +171,54 @@ GET /download-status?songmids=7214800,228908&source=kw
 | `unknown` | 其他未分类错误 |
 - **查不到的 songmid 不会出现在响应里** = 没有对应任务（例如 songmid 未命中歌单被忽略）
 - 同一 `songmid` 可能对应多条记录（同一首歌以不同音质建过多个任务），对账时可结合 `quality` 区分
+- `apiSource` 是任务创建时钉住的音源 id；任务长期 `waiting` 且 `apiSource` 不等于当前音源时，说明它在等待对应音源被切回（见 `/api-source`）
 - 轮询建议：发起下载后每 1~2 秒查询一次，直到目标 songmid 全部到达终态（completed / error）即结束
 - 用户在应用内删除/清空下载列表后对应任务即查不到——看到终态后请调用方自行记录结果
+
+### GET /api-source —— 音源查询/切换/别名绑定
+
+查询当前生效的音源（User API 脚本）与已导入列表，或切换到指定音源并等待其脚本就绪。
+
+```
+GET /api-source                                  # 查询
+GET /api-source?set=<别名或音源id>                 # 切换
+GET /api-source?alias=<别名>[&id=<音源id或别名>]    # 绑定/重绑别名（id 缺省为当前音源）
+```
+
+**音源枚举（建议约定）**：音源的原始 `id` 在导入时随机生成（`user_api_xxx_时间戳`），**重导入会变**，不要写死在调用方。通过 `alias` 绑定一次固定枚举后，`set` 永远用枚举值：
+
+| 别名（枚举） | 音源 | 用途 |
+|---|---|---|
+| `yehua` | 野花 | wy（网易）、kg（酷狗）歌单下载 |
+| `yecao` | 野草 | tx（QQ音乐）歌单下载 |
+
+初始化绑定（每个部署环境做一次，音源重导入后重做）：
+
+```bash
+curl "http://127.0.0.1:23330/api-source?alias=yehua&id=<野花的id>"
+curl "http://127.0.0.1:23330/api-source?alias=yecao&id=<野草的id>"
+# id 从 GET /api-source 的 list 里查（按 name 匹配）
+```
+
+响应示例：
+
+```json
+{
+  "current": "user_api_436_1791810254714",
+  "ready": true,
+  "list": [
+    { "id": "user_api_436_1791810254714", "name": "野花🌷", "version": "1", "description": "", "alias": "yehua" },
+    { "id": "user_api_026_1791819889933", "name": "野草🌾", "version": "1", "description": "", "alias": "yecao" }
+  ]
+}
+```
+
+- `set` / `alias` 的 id 参数既接受原始 id 也接受已绑定的别名；未知的 set 返回 400
+- 切换经应用标准链路（重载脚本窗口，秒级），端点最多等 15s，超时返回 `ready: false`（切换仍会在后台完成，任务会自动等待）
+- **同一时刻只有一个音源生效**（应用的既有架构）；不同平台的下载批次建议「切源 → 下单 → 轮询到批内任务全部终态 → 再切下一个」
+- **任务钉源**：每个下载任务创建时会记住当时的音源（`/download-status` 的 `apiSource` 字段）。音源切换生效后，钉住旧音源的**排队中任务自动挂起**（保持 waiting，不失败、不会拿错音源解析），切回该音源后**自动续跑**；已删除音源的钉不再生效
+- **切换瞬间的边界**：恰好在切换发生时正在取链接的任务可能随旧脚本窗口关闭而失败（`errorCode: url_failed`），重新下单即可重试。因此最稳的编排仍是「切源 → 下单 → 轮询到批内全部终态 → 再切下一个」
+- 注意：切换全局生效——若此实例同时在人工使用（播放歌曲），播放取链接也会走新音源
 
 ### GET /open-songlist —— 打开歌单
 

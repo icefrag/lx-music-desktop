@@ -3,6 +3,8 @@ import querystring from 'node:querystring'
 import type { Socket } from 'node:net'
 import { getAddress } from '@common/utils/nodejs'
 import { sendTaskbarButtonClick, requestSonglist } from '@main/modules/winMain'
+import { getUserApis } from '@main/modules/userApi/utils'
+import { getStatus as getUserApiStatus } from '@main/modules/userApi/rendererEvent/rendererEvent'
 
 const sendResponse = (res: http.ServerResponse, code = 200, msg: string | Record<any, unknown> = 'OK', contentType = 'text/plain; charset=utf-8') => {
   res.writeHead(code, {
@@ -105,6 +107,7 @@ const handleDownloadStatus = async(res: http.ServerResponse<http.IncomingMessage
     status: item.status,
     statusText: item.statusText,
     errorCode: item.errorCode ?? null,
+    apiSource: item.metadata.apiSource ?? null,
     fileName: item.metadata.fileName,
     filePath: item.metadata.filePath,
     quality: item.metadata.quality,
@@ -119,6 +122,64 @@ const handleDownloadStatus = async(res: http.ServerResponse<http.IncomingMessage
   }
   if (typeof source == 'string' && source) list = list.filter(item => item.source == source)
   sendResponse(res, 200, { list }, 'application/json; charset=utf-8')
+}
+
+/**
+ * 音源查询/切换/别名绑定：
+ * - set：接受别名或原始 id，切换走官方设置链路（渲染进程重载脚本窗口）并等待就绪（最长 15s）
+ * - alias：把别名绑定到指定音源（id 缺省为当前音源）。音源 id 在导入时生成、重导入会变，
+ *   调用方绑定一次别名后即可始终用固定枚举切换，音源重导入后重新绑定即可
+ */
+const handleApiSource = async(res: http.ServerResponse<http.IncomingMessage>, params: { set?: string, alias?: string, id?: string }) => {
+  try {
+    const apis = getUserApis()
+    let aliases: Record<string, string> = {}
+    try {
+      aliases = JSON.parse(global.lx.appSetting['openAPI.apiSourceAliases'] || '{}')
+    } catch {} // 容忍损坏的映射串，按空处理
+    const resolveId = (key?: string) => {
+      if (key == null) return undefined
+      if (apis.some(api => api.id == key)) return key
+      return aliases[key] != null && apis.some(api => api.id == aliases[key]) ? aliases[key] : undefined
+    }
+
+    const set = resolveId(params.set)
+    if (params.set != null && set == null) {
+      sendResponse(res, 400, { error: 'Unknown api source id or alias' }, 'application/json; charset=utf-8')
+      return
+    }
+    const bindTarget = resolveId(params.id) ?? (params.id == null ? global.lx.appSetting['common.apiSource'] : undefined)
+    if (params.alias != null && bindTarget == null) {
+      sendResponse(res, 400, { error: 'Unknown api source id to bind' }, 'application/json; charset=utf-8')
+      return
+    }
+
+    const newSetting: Partial<LX.AppSetting> = {}
+    if (params.alias != null) {
+      aliases[params.alias] = bindTarget!
+      newSetting['openAPI.apiSourceAliases'] = JSON.stringify(aliases)
+    }
+    if (set != null && global.lx.appSetting['common.apiSource'] != set) newSetting['common.apiSource'] = set
+    if (Object.keys(newSetting).length) global.lx.event_app.update_config(newSetting)
+
+    if (newSetting['common.apiSource'] != null) {
+      const start = Date.now()
+      while (Date.now() - start < 15000) {
+        const status = getUserApiStatus()
+        if (status.status && status.apiInfo?.id == set) break
+        await new Promise(resolve => setTimeout(resolve, 300))
+      }
+    }
+    const aliasOf = (id: string) => Object.keys(aliases).find(key => aliases[key] == id) ?? null
+    const status = getUserApiStatus()
+    sendResponse(res, 200, {
+      current: global.lx.appSetting['common.apiSource'],
+      ready: status.status,
+      list: apis.map(({ id, name, version, description }) => ({ id, name, version, description, alias: aliasOf(id) })),
+    }, 'application/json; charset=utf-8')
+  } catch (err: any) {
+    sendResponse(res, 500, { error: err.message }, 'application/json; charset=utf-8')
+  }
 }
 
 const handleStartServer = async(port: number, ip: string) => new Promise<void>((resolve, reject) => {
@@ -284,6 +345,15 @@ const handleStartServer = async(port: number, ip: string) => new Promise<void>((
         if (typeof dir == 'string' && dir) data.dir = dir
         global.lx.event_app.deeplink(`lxmusic://music/download?data=${encodeURIComponent(JSON.stringify(data))}`)
         break
+      }
+      case '/api-source': {
+        const { set, alias, id } = querystring.parse(query ?? '')
+        void handleApiSource(res, {
+          set: typeof set == 'string' && set ? set : undefined,
+          alias: typeof alias == 'string' && alias ? alias : undefined,
+          id: typeof id == 'string' && id ? id : undefined,
+        })
+        return
       }
       case '/download-status': {
         void handleDownloadStatus(res, query)

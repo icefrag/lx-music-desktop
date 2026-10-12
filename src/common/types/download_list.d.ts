@@ -68,6 +68,7 @@ declare global {
           fileName: string
           filePath: string
           savePath?: string
+          apiSource?: string
           listId?: string
         }
       }

@@ -682,6 +682,12 @@ declare global {
       'openAPI.bindLan': boolean
 
       /**
+       * 开放 API 的音源别名映射（别名 -> 音源 id 的 JSON 字符串），供调用方以固定枚举切换音源。
+       * 以字符串存储是设置系统只接受原始类型（见 mergeSetting 的 checkPrimitiveType）
+       */
+      'openAPI.apiSourceAliases': string
+
+      /**
        * 是否在离开搜索界面时自动清空搜索框
        */
       'odc.isAutoClearSearchInput': boolean
