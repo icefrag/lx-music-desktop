@@ -19,8 +19,9 @@ export const createQueryStatement = () => {
  */
 export const createInsertStatement = () => {
   const db = getDB()
+  // OR IGNORE：重复 id（内存与库错位时重复添加任务）静默跳过，避免唯一约束报错且回滚整批
   return db.prepare<[LX.DBService.DownloadMusicInfo]>(`
-    INSERT INTO "main"."download_list" ("id", "isComplate", "status", "statusText", "errorCode", "progress_downloaded", "progress_total", "url", "quality", "ext", "fileName", "filePath", "savePath", "apiSource", "musicInfo", "position")
+    INSERT OR IGNORE INTO "main"."download_list" ("id", "isComplate", "status", "statusText", "errorCode", "progress_downloaded", "progress_total", "url", "quality", "ext", "fileName", "filePath", "savePath", "apiSource", "musicInfo", "position")
     VALUES (@id, @isComplate, @status, @statusText, @errorCode, @progress_downloaded, @progress_total, @url, @quality, @ext, @fileName, @filePath, @savePath, @apiSource, @musicInfo, @position)`)
 }
 

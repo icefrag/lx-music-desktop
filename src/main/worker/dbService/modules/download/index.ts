@@ -83,6 +83,9 @@ export const getDownloadList = (): LX.Download.ListItem[] => {
  */
 export const downloadInfoSave = (downloadInfos: LX.Download.ListItem[], addMusicLocationType: LX.AddMusicLocationType) => {
   if (!list) initDownloadList()
+  // 失败任务会被移出库但保留在内存，重推同批歌曲时两侧可能错位，这里按 id 兜底去重
+  downloadInfos = downloadInfos.filter(info => !list.some(m => m.id == info.id))
+  if (!downloadInfos.length) return
   if (addMusicLocationType == 'top') {
     let newList = [...list]
     arrUnshift(newList, downloadInfos)
