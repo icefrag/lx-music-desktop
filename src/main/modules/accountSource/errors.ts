@@ -13,3 +13,11 @@ export class NoSourceError extends Error {
     this.name = 'NoSourceError'
   }
 }
+
+/** 平台风控触发（如安全验证/限流）时抛出，驱动该平台账号链路进入冷却期 */
+export class RiskControlError extends Error {
+  constructor(message = '平台触发风控') {
+    super(message)
+    this.name = 'RiskControlError'
+  }
+}

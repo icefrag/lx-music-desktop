@@ -7,6 +7,7 @@ import { sendEvent } from '@main/modules/winMain/main'
 import { ACCOUNT_SOURCE_PLATFORMS, PLATFORM_CONFIGS } from './const'
 import { AuthExpiredError, NoSourceError } from './errors'
 import { cancelLogin, openLogin } from './loginWin'
+import { isCoolingDown, runThrottled } from './queue'
 import { resolvers } from './resolvers'
 import { clearSession, hasLoginCookie } from './sessions'
 import { getStatus, setStatusBroadcast, updateStatus } from './status'
@@ -62,9 +63,15 @@ const revalidateQuietly = (platform: LX.AccountSource.Platform) => {
 
 export const requestUrl = async({ source, type, musicInfo }: LX.AccountSource.UrlRequestParams) => {
   if (!ACCOUNT_SOURCE_PLATFORMS.includes(source)) throw new Error(`不支持的音乐源: ${source}`)
-  if (!await hasLoginCookie(source)) throw new Error(`未登录${PLATFORM_CONFIGS[source].name}`)
+  // 风控冷却期快速失败（不占队列、不碰平台），渲染层自动走兜底链
+  if (isCoolingDown(source)) throw new Error(`${PLATFORM_CONFIGS[source].name}账号冷却中(风控触发)，已走兜底音源`)
+  if (!await hasLoginCookie(source)) {
+    // 诊断日志：链路未触发（cookie 未捕获）与 resolver 报错需可区分
+    console.log(`[account-source:${source}] 跳过：登录 cookie 未捕获，走兜底链`)
+    throw new Error(`未登录${PLATFORM_CONFIGS[source].name}`)
+  }
   try {
-    return { url: await resolvers[source].getMusicUrl(musicInfo, type) }
+    return { url: await runThrottled(source, async() => resolvers[source].getMusicUrl(musicInfo, type)) }
   } catch (err: any) {
     // 诊断日志：真机验证期观察解析失败原因，稳定后移除
     console.log(`[account-source:${source}] 解析失败(${type}):`, err.message)

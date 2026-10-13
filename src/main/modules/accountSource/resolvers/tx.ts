@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import { httpFetch } from '@main/utils/request'
 import { getCookieHeader } from '../sessions'
 import { AuthExpiredError, NoSourceError } from '../errors'
@@ -45,23 +46,42 @@ interface VkeyResponse {
   }
 }
 
+// zzc 签名：QQ音乐移动端 musics.fcg 通道所需（网页明文 musicu.fcg 已被限制，GetVkey 恒报 req_1.code 500003）；
+// 复刻自本仓库 musicSdk/tx/utils/crypto.js
+const PART_1_INDEXES = [23, 14, 6, 36, 16, 40, 7, 19]
+const PART_2_INDEXES = [16, 1, 32, 12, 19, 27, 8, 5]
+const SCRAMBLE_VALUES = [89, 39, 179, 150, 218, 82, 58, 252, 177, 52, 186, 123, 120, 64, 242, 133, 143, 161, 121, 179]
+
+const zzcSign = (text: string) => {
+  const hash = crypto.createHash('sha1').update(text, 'utf8').digest('hex')
+  const part1 = PART_1_INDEXES.map(idx => hash[idx]).join('')
+  const part2 = PART_2_INDEXES.map(idx => hash[idx]).join('')
+  const bytes = Buffer.from(SCRAMBLE_VALUES.map((value, i) => value ^ parseInt(hash.slice(i * 2, i * 2 + 2), 16)))
+  const b64Part = bytes.toString('base64').replace(/[\\/+=]/g, '')
+  return `zzc${part1}${b64Part}${part2}`.toLowerCase()
+}
+
 const musicuRequest = async(param: object) => {
   const cookie = await getCookieHeader('tx')
-  const { body, statusCode } = await httpFetch<VkeyResponse>('https://u.y.qq.com/cgi-bin/musicu.fcg', {
+  const body = JSON.stringify({ req_1: param })
+  const { body: resBody, statusCode } = await httpFetch<VkeyResponse>('https://u.y.qq.com/cgi-bin/musics.fcg', {
     method: 'POST',
-    json: { req_1: param },
+    query: { sign: zzcSign(body) },
+    text: body,
     timeout: 10000,
     retryNum: 1,
     maxRedirect: 0,
     headers: {
+      'Content-Type': 'application/json',
+      'User-Agent': 'QQMusic 14090508(android 12)',
       Cookie: cookie,
       Referer: 'https://y.qq.com/',
       Origin: 'https://y.qq.com',
     },
   })
   if (statusCode != 200) throw new Error(`QQ音乐接口请求失败(${statusCode})`)
-  if (body?.code != 0) throw new Error(`QQ音乐接口返回异常(code=${body?.code})`)
-  return body
+  if (resBody?.code != 0) throw new Error(`QQ音乐接口返回异常(code=${resBody?.code})`)
+  return resBody
 }
 
 const hasKeyst = (cookie: string) => {

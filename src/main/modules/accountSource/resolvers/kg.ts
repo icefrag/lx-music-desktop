@@ -1,7 +1,7 @@
 import crypto from 'node:crypto'
 import { httpFetch } from '@main/utils/request'
 import { BROWSER_UA, getCookieHeader, getCookieMap } from '../sessions'
-import { AuthExpiredError } from '../errors'
+import { AuthExpiredError, RiskControlError } from '../errors'
 
 // 酷狗移动端通道（v5/url）签名参数，复刻自开源项目 MakcRe/KuGouMusicApi
 const ANDROID_SIGN_SALT = 'OIlwieks28dk2k092lksi2UIkp'
@@ -303,7 +303,7 @@ export const getMusicUrl = async(songInfo: Record<string, any>, quality: LX.Qual
     // 诊断日志：真机验证期观察酷狗真实响应，稳定后移除
     console.log(`[account-source:kg] ${qualityValue} ${hash} ->`, JSON.stringify(body).slice(0, 400))
     if (body.errcode == 20028 || body.error_code == 20028) {
-      throw new Error('酷狗音乐触发安全验证，请稍后重试或重新登录')
+      throw new RiskControlError('酷狗音乐触发安全验证，请稍后重试或重新登录')
     }
     if (token && (body.errcode == 20001 || body.error_code == 30202)) {
       throw new AuthExpiredError('酷狗音乐登录凭证已失效')
