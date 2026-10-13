@@ -17,6 +17,7 @@ declare global {
       type FileExt = 'mp3' | 'flac' | 'wav' | 'ape'
 
       type ErrorCode = 'url_failed'
+      | 'account_expired'
       | 'file_exists'
       | 'check_path'
       | 'response'

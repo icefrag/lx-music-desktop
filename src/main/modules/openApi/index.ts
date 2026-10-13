@@ -5,6 +5,7 @@ import { getAddress } from '@common/utils/nodejs'
 import { sendTaskbarButtonClick, requestSonglist } from '@main/modules/winMain'
 import { getUserApis } from '@main/modules/userApi/utils'
 import { getStatus as getUserApiStatus } from '@main/modules/userApi/rendererEvent/rendererEvent'
+import { getStatus as getAccountSourceStatus } from '@main/modules/accountSource/status'
 
 const sendResponse = (res: http.ServerResponse, code = 200, msg: string | Record<any, unknown> = 'OK', contentType = 'text/plain; charset=utf-8') => {
   res.writeHead(code, {
@@ -373,6 +374,10 @@ const handleStartServer = async(port: number, ip: string) => new Promise<void>((
         void handleDownloadStatus(res, query)
         return
       }
+      // 账号音源登录态（kg/tx/wy：未登录/正常/已过期），下载任务 errorCode=account_expired 时据此判断是否需要重新登录
+      case '/account-source-status':
+        sendResponse(res, 200, getAccountSourceStatus(), 'application/json; charset=utf-8')
+        return
       case '/mute': {
         const mute = querystring.parse(query ?? '').mute
         if (mute == 'true') {

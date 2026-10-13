@@ -186,6 +186,28 @@ export const userApiRequestCancel = (requestKey: LX.UserApi.UserApiRequestCancel
   rendererSend(WIN_MAIN_RENDERER_EVENT_NAME.request_user_api_cancel, requestKey)
 }
 
+export const getAccountSourceStatus = async(): Promise<LX.AccountSource.StatusMap> => {
+  return rendererInvoke<LX.AccountSource.StatusMap>(WIN_MAIN_RENDERER_EVENT_NAME.account_source_get_status)
+}
+export const loginAccountSource = async(platform: LX.AccountSource.Platform): Promise<LX.AccountSource.StatusMap> => {
+  return rendererInvoke<LX.AccountSource.Platform, LX.AccountSource.StatusMap>(WIN_MAIN_RENDERER_EVENT_NAME.account_source_login, platform)
+}
+export const cancelLoginAccountSource = async(): Promise<void> => {
+  return rendererInvoke(WIN_MAIN_RENDERER_EVENT_NAME.account_source_login_cancel)
+}
+export const logoutAccountSource = async(platform: LX.AccountSource.Platform): Promise<LX.AccountSource.StatusMap> => {
+  return rendererInvoke<LX.AccountSource.Platform, LX.AccountSource.StatusMap>(WIN_MAIN_RENDERER_EVENT_NAME.account_source_logout, platform)
+}
+export const requestAccountSourceUrl = async(params: LX.AccountSource.UrlRequestParams): Promise<LX.AccountSource.UrlResult> => {
+  return rendererInvoke<LX.AccountSource.UrlRequestParams, LX.AccountSource.UrlResult>(WIN_MAIN_RENDERER_EVENT_NAME.account_source_request_url, params)
+}
+export const onAccountSourceStatus = (listener: LX.IpcRendererEventListenerParams<LX.AccountSource.StatusMap>): RemoveListener => {
+  rendererOn(WIN_MAIN_RENDERER_EVENT_NAME.account_source_status, listener)
+  return () => {
+    rendererOff(WIN_MAIN_RENDERER_EVENT_NAME.account_source_status, listener)
+  }
+}
+
 // export const setDesktopLyricInfo = (type, data, info) => {
 //   rendererSend(WIN_MAIN_RENDERER_EVENT_NAME.set_lyric_info, {
 //     type,

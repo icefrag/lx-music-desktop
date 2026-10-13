@@ -32,6 +32,14 @@ const toDBDownloadInfo = (musicInfos: LX.Download.ListItem[], offset: number = 0
   })
 }
 
+// 数据库里的 errorCode 是外部输入（可能来自旧版本写入），不能直接断言成联合类型
+const errorCodeSet = new Set<string>(['url_failed', 'account_expired', 'file_exists', 'check_path', 'response', 'write', 'unknown'])
+
+const toErrorCode = (code: string | null | undefined): LX.Download.ErrorCode | undefined => {
+  if (code == null) return undefined
+  return errorCodeSet.has(code) ? code as LX.Download.ErrorCode : 'unknown'
+}
+
 const initDownloadList = () => {
   list = queryDownloadList().map(item => {
     const musicInfo = JSON.parse(item.musicInfo) as LX.Music.MusicInfoOnline
@@ -40,7 +48,7 @@ const initDownloadList = () => {
       isComplate: item.isComplate == 1,
       status: item.status,
       statusText: item.statusText,
-      errorCode: item.errorCode ?? undefined,
+      errorCode: toErrorCode(item.errorCode),
       downloaded: item.progress_downloaded,
       total: item.progress_total,
       progress: item.progress_total ? parseInt((item.progress_downloaded / item.progress_total).toFixed(2)) * 100 : 0,

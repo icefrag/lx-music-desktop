@@ -143,6 +143,16 @@ export const userApi = reactive<{
   apis: {},
 })
 
+export const accountSource = reactive<{
+  status: LX.AccountSource.StatusMap
+}>({
+  status: {
+    kg: { login: false, status: 'unknown', updatedAt: 0 },
+    tx: { login: false, status: 'unknown', updatedAt: 0 },
+    wy: { login: false, status: 'unknown', updatedAt: 0 },
+  },
+})
+
 export const isShowChangeLog = ref(false)
 
 

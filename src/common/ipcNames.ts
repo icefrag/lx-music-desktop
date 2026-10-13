@@ -113,6 +113,13 @@ const modules = {
     user_api_show_update_alert: 'user_api_show_update_alert',
     user_api_set_allow_update_alert: 'user_api_set_allow_update_alert',
 
+    account_source_get_status: 'account_source_get_status',
+    account_source_login: 'account_source_login',
+    account_source_login_cancel: 'account_source_login_cancel',
+    account_source_logout: 'account_source_logout',
+    account_source_request_url: 'account_source_request_url',
+    account_source_status: 'account_source_status',
+
     get_palyer_lyric: 'get_lyric',
     // save_lyric: 'save_lyric',
     // clear_lyric: 'clear_lyric',

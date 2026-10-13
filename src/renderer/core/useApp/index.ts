@@ -10,6 +10,7 @@ import useUpdate from './useUpdate'
 import useDataInit from './useDataInit'
 import useHandleEnvParams from './useHandleEnvParams'
 import useEventListener from './useEventListener'
+import useInitAccountSource from './useInitAccountSource'
 import useDeeplink from './useDeeplink'
 import useOpenApiData from './useOpenApiData'
 import usePlayer from './usePlayer'
@@ -32,6 +33,7 @@ export default () => {
   const initStatusbarLyric = useStatusbarLyric()
   useEventListener()
   useOpenApiData()
+  useInitAccountSource()
   const initPlayer = usePlayer()
   const handleEnvParams = useHandleEnvParams()
   const initData = useDataInit()

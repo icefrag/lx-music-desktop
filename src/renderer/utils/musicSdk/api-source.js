@@ -1,5 +1,6 @@
 import apiSourceInfo from './api-source-info'
-import { apiSource, userApi } from '@renderer/store'
+import { apiSource, userApi, accountSource } from '@renderer/store'
+import { requestAccountSourceUrl } from '@renderer/utils/ipc'
 // import api_temp_kw from './kw/api-temp'
 // // import api_test_bd from './bd/api-test'
 // import api_test_tx from './tx/api-test'
@@ -30,7 +31,33 @@ for (const api of apiSourceInfo) {
 
 const getAPI = source => apiList[`${apiSource.value}_api_${source}`]
 
+// 账号音源：登录后优先用账号解析，失败自动落回当前音源（兜底链）
+const isAccountSourceActive = source => {
+  const status = accountSource.status[source]
+  return status?.login && status.status != 'expired'
+}
+
+const buildAccountApi = source => {
+  return {
+    getMusicUrl(songInfo, type) {
+      return {
+        canceleFn() {},
+        promise: requestAccountSourceUrl({ source, type, musicInfo: songInfo }).then(
+          res => ({ type, url: res.url }),
+          err => {
+            // 与 apis() 的分发链保持一致：账号解析失败时回落到当前生效音源（user_api 或内置）
+            const fallback = /^user_api/.test(apiSource.value) ? userApi.apis[source] : getAPI(source)
+            if (fallback?.getMusicUrl) return fallback.getMusicUrl(songInfo, type).promise
+            throw err
+          },
+        ),
+      }
+    },
+  }
+}
+
 const apis = source => {
+  if (isAccountSourceActive(source)) return buildAccountApi(source)
   if (/^user_api/.test(apiSource.value)) return userApi.apis[source]
   let api = getAPI(source)
   if (api) return api

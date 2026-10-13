@@ -50,7 +50,12 @@ export const windowSizeList: WindowSize[] = [
   },
 ]
 
-export const navigationUrlWhiteList: RegExp[] = []
+// 生产环境 will-navigate 白名单（app.ts 全局守卫用）。
+// 账号音源登录窗口需要放行平台登录页的内部跳转（如酷狗 passport 重定向、QQ 快捷登录域），
+// SSO 弹窗策略见 main/modules/accountSource/loginWin.ts
+export const navigationUrlWhiteList: RegExp[] = [
+  /^https?:\/\/([^/]+\.)*(163\.com|kugou\.com|qq\.com)\//,
+]
 
 // 基础黑白色
 // export const commonColorNames = [

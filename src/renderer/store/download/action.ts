@@ -206,21 +206,29 @@ const downloadLyric = (downloadInfo: LX.Download.ListItem) => {
   })
 }
 
-const getUrl = async(downloadInfo: LX.Download.ListItem, isRefresh: boolean = false) => {
+// 主进程账号链路凭证失效时错误消息带稳定前缀（见 accountSource requestUrl），据此归类错误码
+const isAccountExpiredError = (err: unknown) => {
+  return /^account_expired: /.test(err instanceof Error ? err.message : String(err))
+}
+
+const getUrl = async(downloadInfo: LX.Download.ListItem, isRefresh: boolean = false): Promise<{ url: string, errorCode?: LX.Download.ErrorCode }> => {
   let toggleMusicInfo = downloadInfo.metadata.musicInfo.meta.toggleMusicInfo
-  return (toggleMusicInfo ? getMusicUrl({
-    musicInfo: toggleMusicInfo,
-    isRefresh,
-    quality: downloadInfo.metadata.quality,
-    allowToggleSource: false,
-  }) : Promise.reject(new Error('not found'))).catch(() => {
-    return getMusicUrl({
-      musicInfo: downloadInfo.metadata.musicInfo,
-      isRefresh: false,
+  const toResult = async(promise: Promise<string>): Promise<{ url: string, errorCode?: LX.Download.ErrorCode }> => promise.then(url => ({ url }), err => ({ url: '', errorCode: isAccountExpiredError(err) ? 'account_expired' : undefined }))
+  const result = toggleMusicInfo
+    ? await toResult(getMusicUrl({
+      musicInfo: toggleMusicInfo,
+      isRefresh,
       quality: downloadInfo.metadata.quality,
-      allowToggleSource: appSetting['download.isUseOtherSource'],
-    })
-  }).catch(() => '')
+      allowToggleSource: false,
+    }))
+    : { url: '' }
+  if (result.url) return result
+  return toResult(getMusicUrl({
+    musicInfo: downloadInfo.metadata.musicInfo,
+    isRefresh: false,
+    quality: downloadInfo.metadata.quality,
+    allowToggleSource: appSetting['download.isUseOtherSource'],
+  }))
 }
 const handleRefreshUrl = (downloadInfo: LX.Download.ListItem) => {
   setStatusText(downloadInfo, window.i18n.t('download_status_error_refresh_url'))
@@ -270,12 +278,12 @@ const handleError = (downloadInfo: LX.Download.ListItem, message?: string, error
 const handleStartTask = async(downloadInfo: LX.Download.ListItem) => {
   if (!downloadInfo.metadata.url) {
     setStatusText(downloadInfo, window.i18n.t('download_status_url_getting'))
-    const url = await getUrl(downloadInfo)
-    if (!url) {
-      handleError(downloadInfo, window.i18n.t('download_status_error_url_failed'), 'url_failed')
+    const urlResult = await getUrl(downloadInfo)
+    if (!urlResult.url) {
+      handleError(downloadInfo, window.i18n.t('download_status_error_url_failed'), urlResult.errorCode ?? 'url_failed')
       return
     }
-    setUrl(downloadInfo, url)
+    setUrl(downloadInfo, urlResult.url)
     if (downloadInfo.status != DOWNLOAD_STATUS.RUN) return
   }
 
