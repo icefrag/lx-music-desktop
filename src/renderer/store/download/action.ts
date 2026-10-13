@@ -11,7 +11,7 @@ import {
 import { markRaw, toRaw, watch } from '@common/utils/vueTools'
 import { getMusicUrl, getPicUrl, getLyricInfo } from '@renderer/core/music/online'
 import { appSetting } from '../setting'
-import { apiSource, qualityList, userApi } from '..'
+import { accountSource, apiSource, qualityList, userApi } from '..'
 import { proxyCallback } from '@renderer/worker/utils'
 import { arrPush, arrUnshift, joinPath } from '@renderer/utils'
 import { DOWNLOAD_STATUS } from '@common/constants'
@@ -335,6 +335,21 @@ const startTask = async(downloadInfo: LX.Download.ListItem) => {
   void handleStartTask(downloadInfo)
 }
 
+// 账号音源生效的平台同时只跑一个任务：解析请求按节奏串行，降低平台风控风险（免费源任务不受限）
+const isAccountSourceActive = (source: string) => {
+  if (source != 'kg' && source != 'tx' && source != 'wy') return false
+  const status = accountSource.status[source]
+  return status?.login && status.status != 'expired'
+}
+
+const canStartBySourceLimit = (downloadInfo: LX.Download.ListItem) => {
+  const source = downloadInfo.metadata.musicInfo.source
+  if (!isAccountSourceActive(source)) return true
+  return !downloadList.some(item => {
+    return item.id != downloadInfo.id && item.status == DOWNLOAD_STATUS.RUN && item.metadata.musicInfo.source == source
+  })
+}
+
 const getStartTask = (list: LX.Download.ListItem[]): LX.Download.ListItem | null => {
   let downloadCount = 0
   // 当前音源是用户音源且脚本未就绪时，排队任务一律挂起，避免启动即失败
@@ -345,7 +360,7 @@ const getStartTask = (list: LX.Download.ListItem[]): LX.Download.ListItem | null
       // 任务钉住的音源与当前不一致时挂起等待，避免切源后排队的任务拿错音源解析
       const pinned = item.metadata.apiSource
       if (pinned && pinned != apiSource.value && userApi.list.some(api => api.id == pinned)) return false
-      return true
+      return canStartBySourceLimit(item)
     }
     if (item.status == DOWNLOAD_STATUS.RUN) ++downloadCount
     return false
@@ -413,7 +428,8 @@ export const startDownloadTasks = async(list: LX.Download.ListItem[]) => {
     switch (downloadInfo.status) {
       case DOWNLOAD_STATUS.PAUSE:
       case DOWNLOAD_STATUS.ERROR:
-        if (runingTask.size < appSetting['download.maxDownloadNum']) void startTask(downloadInfo)
+        // 复用账号音源单平台限制判定，避免恢复任务直启绕过调度器
+        if (runingTask.size < appSetting['download.maxDownloadNum'] && canStartBySourceLimit(downloadInfo)) void startTask(downloadInfo)
         else setStatus(downloadInfo, DOWNLOAD_STATUS.WAITING)
       default:
         break

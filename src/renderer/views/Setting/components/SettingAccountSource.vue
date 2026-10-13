@@ -9,13 +9,21 @@ dd.gap-top
       span.small(v-if="statusNickname(platform)") （{{ statusNickname(platform) }}）
       base-btn.btn.min(:class="$style.btn" :disabled="loggingIn != null" @click="handleLogin(platform.id)") {{ loginLabel(platform) }}
       base-btn.btn.min(v-if="status[platform.id].login" :class="$style.btn" :disabled="loggingIn != null" @click="handleLogout(platform.id)") {{ $t('account_source__logout') }}
+    .p.small.gap-top {{ $t('account_source__request_interval_tip') }}
+    div(:class="$style.intervalRow")
+      span.small {{ $t('account_source__request_interval') }}
+      template(v-for="platform in platforms" :key="platform.id")
+        span.small {{ $t(`account_source__platform_${platform.id}`) }}
+        base-input(:class="$style.intervalInput" :model-value="appSetting[`accountSource.requestInterval.${platform.id}`]" type="number" :aria-label="$t(`account_source__platform_${platform.id}`) + ' ' + $t('account_source__request_interval')" @update:model-value="handleSetInterval(platform.id, $event)")
     .p.small.gap-top {{ $t('account_source__expired_tip') }}
 </template>
 
 <script>
 import { computed, ref } from '@common/utils/vueTools'
+import { debounce } from '@common/utils'
 import { useI18n } from '@renderer/plugins/i18n'
 import { accountSource } from '@renderer/store'
+import { appSetting, updateSetting } from '@renderer/store/setting'
 import { loginAccountSource, logoutAccountSource } from '@renderer/utils/ipc'
 import { dialog } from '@renderer/plugins/Dialog'
 
@@ -82,6 +90,20 @@ export default {
     // 状态对象在 useInitAccountSource 里是整体替换，必须用 computed 才能跟随更新
     const status = computed(() => accountSource.status)
 
+    // 每个平台独立的防抖 setter：共享单个 debounce 实例会丢掉前一个字段未提交的编辑
+    const intervalSetters = new Map()
+    const handleSetInterval = (platform, value) => {
+      const seconds = Number(value)
+      // 空值/非法输入保持原设置，避免误清空触发「0 = 不限速」
+      if (!Number.isFinite(seconds) || seconds < 0) return
+      if (!intervalSetters.has(platform)) {
+        intervalSetters.set(platform, debounce(val => {
+          updateSetting({ [`accountSource.requestInterval.${platform}`]: Math.max(0, Math.round(val)) })
+        }, 500))
+      }
+      intervalSetters.get(platform)(seconds)
+    }
+
     return {
       platforms,
       status,
@@ -91,6 +113,8 @@ export default {
       loginLabel,
       handleLogin,
       handleLogout,
+      appSetting,
+      handleSetInterval,
     }
   },
 }
@@ -100,6 +124,15 @@ export default {
 @import '@renderer/assets/styles/layout.less';
 .btn {
   margin-left: 10px;
+}
+.intervalRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+.intervalInput {
+  width: 90px;
 }
 .status {
   margin-left: 10px;

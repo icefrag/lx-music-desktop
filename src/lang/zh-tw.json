@@ -761,5 +761,7 @@
   "user_api_import_online__input_confirm": "匯入",
   "user_api_import_online__input_loading": "匯入中...",
   "user_api_import_online__input_tip": "請輸入 HTTP 連結",
-  "user_api_import_online__title": "從線上匯入自訂來源 API"
+  "user_api_import_online__title": "從線上匯入自訂來源 API",
+  "account_source__request_interval": "解析請求間隔(秒)",
+  "account_source__request_interval_tip": "賬號音源解析請求的最小間隔，防止平台風控限流。批量下載時同平台任務將按此節奏串行解析，0 為不限速（自擔風險）"
 }

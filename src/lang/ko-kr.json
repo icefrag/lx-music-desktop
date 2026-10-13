@@ -761,5 +761,7 @@
   "user_api_import_online__input_confirm": "가져오기",
   "user_api_import_online__input_loading": "가져오는 중...",
   "user_api_import_online__input_tip": "HTTP 링크를 입력하세요",
-  "user_api_import_online__title": "네트워크에서 음악 API 가져오기"
+  "user_api_import_online__title": "네트워크에서 음악 API 가져오기",
+  "account_source__request_interval": "요청 간격(초)",
+  "account_source__request_interval_tip": "계정 소스 해석 요청의 최소 간격으로 플랫폼 제한을 방지합니다. 동일 플랫폼의 대량 다운로드는 이 속도로 순차 해석되며, 0이면 제한하지 않습니다(위험 자수)"
 }

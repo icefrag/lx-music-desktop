@@ -688,6 +688,13 @@ declare global {
       'openAPI.apiSourceAliases': string
 
       /**
+       * 账号音源各平台的解析请求最小间隔（秒）。保护账号不被平台风控限流，0 为不限速
+       */
+      'accountSource.requestInterval.kg': number
+      'accountSource.requestInterval.tx': number
+      'accountSource.requestInterval.wy': number
+
+      /**
        * 是否在离开搜索界面时自动清空搜索框
        */
       'odc.isAutoClearSearchInput': boolean
