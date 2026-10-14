@@ -527,17 +527,36 @@ const checkStartTask = async() => {
 
 /**
  * 过滤重复任务
+ *
+ * 判重语义（camel 035）：等待/运行/暂停的在途条目维持判重（静默丢弃同 id 新任务）；
+ * 失败/已完成的终态条目被同 id 新提交命中时移除旧条目、放行新任务——重新下载 = 重试
  * @param list
  */
-const filterTask = (list: LX.Download.ListItem[]) => {
+const filterTask = async(list: LX.Download.ListItem[]) => {
   const set = new Set<string>()
-  for (const item of downloadList) set.add(item.id)
-  return list.filter(item => {
-    if (set.has(item.id)) return false
+  const terminal = new Map<string, LX.Download.ListItem>()
+  for (const item of downloadList) {
+    set.add(item.id)
+    if (item.status == DOWNLOAD_STATUS.ERROR || item.status == DOWNLOAD_STATUS.COMPLETED) terminal.set(item.id, item)
+  }
+  const admitted: LX.Download.ListItem[] = []
+  const staleIds = new Set<string>()
+  for (const item of list) {
+    if (set.has(item.id)) {
+      // 同 id 命中终态条目：标记替换（批内重复 id 只有第一个生效）
+      if (terminal.has(item.id) && !staleIds.has(item.id)) {
+        staleIds.add(item.id)
+        markRaw(item.metadata)
+        admitted.push(item)
+      }
+      continue
+    }
     markRaw(item.metadata)
     set.add(item.id)
-    return true
-  })
+    admitted.push(item)
+  }
+  if (staleIds.size) await removeDownloadTasks([...staleIds])
+  return admitted
 }
 // 音源切换或脚本就绪状态变化后重新调度：切回时自动恢复被钉源挂起的任务
 watch([apiSource, () => userApi.status], () => { void checkStartTask() })
@@ -561,7 +580,7 @@ watch(() => accountSource.status, () => {
  */
 export const createDownloadTasks = async(list: LX.Music.MusicInfoOnline[], quality: LX.Quality, listId?: string, savePath?: string) => {
   if (!list.length) return
-  const tasks = filterTask(await window.lx.worker.download.createDownloadTasks(list, quality,
+  const tasks = await filterTask(await window.lx.worker.download.createDownloadTasks(list, quality,
     appSetting['download.fileName'],
     toRaw(qualityList.value), listId),
   )
