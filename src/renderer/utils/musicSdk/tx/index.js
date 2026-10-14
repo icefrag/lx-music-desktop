@@ -15,8 +15,8 @@ const tx = {
   hotSearch,
   comment,
 
-  getMusicUrl(songInfo, type) {
-    return apis('tx').getMusicUrl(songInfo, type)
+  getMusicUrl(songInfo, type, options) {
+    return apis('tx', options).getMusicUrl(songInfo, type)
   },
   getLyric(songInfo) {
     // let singer = songInfo.singer.indexOf('、') > -1 ? songInfo.singer.split('、')[0] : songInfo.singer

@@ -6,8 +6,13 @@ import USER_API_RENDERER_EVENT_NAME from '../rendererEvent/name'
 import { httpOverHttp, httpsOverHttp } from 'tunnel'
 
 
+// 双通道（ADR 0005）：主进程常驻第二个沙箱页经 additionalArguments 传入 --lx-spill-channel
+// 固定加载内置野花，出站消息带 scope 标签，主进程据此路由，避免与当前生效音源沙箱的 init/response 串线
+const SPILL_SCOPE = process.argv.includes('--lx-spill-channel')
+
 const sendMessage = (action, data, status, message) => {
-  ipcRenderer.send(action, { data, status, message })
+  const payload = SPILL_SCOPE ? { scope: 'spill', data, status, message } : { data, status, message }
+  ipcRenderer.send(action, payload)
 }
 
 let isInitedApi = false

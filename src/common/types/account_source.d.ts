@@ -11,6 +11,8 @@ declare namespace LX {
       nickname?: string
       message?: string
       updatedAt: number
+      /** 风控冷却截止时间戳（毫秒）；缺省或已过期 = 未冷却 */
+      cooldownUntil?: number
     }
 
     type StatusMap = Record<Platform, Status>

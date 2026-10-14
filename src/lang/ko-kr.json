@@ -72,6 +72,9 @@
   "download_status_error_write": "다운로드 위치가 사용 중이거나 쓰기 권한이 없습니다. 다운로드 폴더를 변경하거나 앱/기기를 재시작해 보세요. 오류 상세: ",
   "download_status_start": "다운로드 시작",
   "download_status_url_getting": "노래 링크를 가져오는 중...",
+  "download_status_risk_control_cooldown": "리스크 컨트롤 쿨다운 중, {num}분 남음",
+  "download_status_via_third_party": "서드파티 소스로 해석됨(야화)",
+  "download_status_spill_broken": "서드파티 채널 사용 불가, 곧 자동 재시도",
   "download_status_write_queue": "데이터 쓰는 중 ({num})",
   "duplicate_list_tip": "이미 \"{name}\" 목록을 담은 적이 있습니다. 목록의 곡을 업데이트하시겠습니까?",
   "export": "내보내기",
@@ -763,5 +766,5 @@
   "user_api_import_online__input_tip": "HTTP 링크를 입력하세요",
   "user_api_import_online__title": "네트워크에서 음악 API 가져오기",
   "account_source__request_interval": "요청 간격(초)",
-  "account_source__request_interval_tip": "계정 소스 해석 요청의 최소 간격으로 플랫폼 제한을 방지합니다. 동일 플랫폼의 대량 다운로드는 이 속도로 순차 해석되며, 0이면 제한하지 않습니다(위험 자수)"
+  "account_source__request_interval_tip": "계정 소스 해석 요청의 최소 간격으로 플랫폼 제한을 방지합니다. 동일 플랫폼의 대량 다운로드는 이 속도로 순차 해석되며, 최소 1초입니다"
 }

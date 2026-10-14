@@ -2,8 +2,9 @@
 // eslint-disable-next-line @typescript-eslint/triple-slash-reference
 /// <reference path="../../../common/types/account_source.d.ts" />
 import { RiskControlError } from './errors'
+import { updateStatus } from './status'
 
-// 各平台解析请求的最小间隔（秒）：保护账号不被平台风控限流，设置页可调，0 为不限速
+// 风控冷却时长：10 分钟起步，连续触发指数翻倍，上限 1 小时
 const COOLDOWN_BASE_MS = 10 * 60 * 1000
 const COOLDOWN_MAX_MS = 60 * 60 * 1000
 
@@ -29,11 +30,12 @@ const getThrottle = (platform: LX.AccountSource.Platform): PlatformThrottle => {
   return throttle
 }
 
+// 各平台解析请求的最小间隔（秒）：保护账号不被平台风控限流，设置页可调
+// 下限 1s：旧版本允许存 0（不限速），下载并发放开后同平台会背靠背连发解析请求
 const getIntervalMs = (platform: LX.AccountSource.Platform) => {
   const seconds = Number(global.lx.appSetting[`accountSource.requestInterval.${platform}` as keyof LX.AppSetting]) || 0
-  if (seconds <= 0) return 0
   // ±20% 抖动，避免固定节奏被识别为机器行为
-  return seconds * 1000 * (0.8 + Math.random() * 0.4)
+  return Math.max(1, seconds) * 1000 * (0.8 + Math.random() * 0.4)
 }
 
 export const isCoolingDown = (platform: LX.AccountSource.Platform) => {
@@ -44,7 +46,7 @@ const sleep = async(ms: number) => new Promise(resolve => setTimeout(resolve, ms
 
 /**
  * 平台队列内执行一次解析请求：按最小间隔放行，风控触发时该平台进入指数冷却。
- * 同平台的播放/下载/开放 API 请求都经过这里串行限速。
+ * 同平台的取链请求（requestUrl：播放/下载）都经过这里串行限速；validate() 等直连探测不经过本队列。
  */
 export const runThrottled = async<T>(platform: LX.AccountSource.Platform, task: () => Promise<T>): Promise<T> => {
   const throttle = getThrottle(platform)
@@ -65,6 +67,8 @@ export const runThrottled = async<T>(platform: LX.AccountSource.Platform, task: 
         const cooldownMs = Math.min(COOLDOWN_MAX_MS, COOLDOWN_BASE_MS * 2 ** (throttle.cooldownLevel - 1))
         throttle.cooldownUntil = Date.now() + cooldownMs
         console.log(`[account-source:${platform}] 风控冷却 ${Math.round(cooldownMs / 60000)} 分钟(连续第 ${throttle.cooldownLevel} 次)`)
+        // 广播冷却截止时间：渲染层调度器据此挂起同平台任务，冷却结束自动恢复
+        updateStatus(platform, { cooldownUntil: throttle.cooldownUntil })
       }
       throw err
     }

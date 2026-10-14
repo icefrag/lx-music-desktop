@@ -37,7 +37,12 @@ const isAccountSourceActive = source => {
   return status?.login && status.status != 'expired'
 }
 
-const buildAccountApi = source => {
+// 兜底音源（不含账号层）：播放链路的回落目标；下载分发器在双通道全败后的最后尝试（ADR 0005）
+const getFallbackApi = source => {
+  return /^user_api/.test(apiSource.value) ? userApi.apis[source] : getAPI(source)
+}
+
+const buildAccountApi = (source, options = {}) => {
   return {
     getMusicUrl(songInfo, type) {
       return {
@@ -45,8 +50,10 @@ const buildAccountApi = source => {
         promise: requestAccountSourceUrl({ source, type, musicInfo: songInfo }).then(
           res => ({ type, url: res.url }),
           err => {
-            // 与 apis() 的分发链保持一致：账号解析失败时回落到当前生效音源（user_api 或内置）
-            const fallback = /^user_api/.test(apiSource.value) ? userApi.apis[source] : getAPI(source)
+            // 下载链路声明 noRiskControlFallback：风控冷却等账号恢复比静默降级到免费源更符合预期
+            if (options.noRiskControlFallback && /^risk_control: /.test(err?.message ?? '')) throw err
+            // 账号解析失败时回落到当前生效音源（user_api 或内置）
+            const fallback = getFallbackApi(source)
             if (fallback?.getMusicUrl) return fallback.getMusicUrl(songInfo, type).promise
             throw err
           },
@@ -56,12 +63,15 @@ const buildAccountApi = source => {
   }
 }
 
-const apis = source => {
-  if (isAccountSourceActive(source)) return buildAccountApi(source)
+const apis = (source, options) => {
+  // 诊断日志：真机验证期观察取链分发路径，稳定后移除
+  const active = isAccountSourceActive(source)
+  console.log('[api-source] apis()', source, 'accountActive=', active, 'apiSource=', apiSource.value, 'userApiHas=', !!userApi.apis[source])
+  if (active) return buildAccountApi(source, options)
   if (/^user_api/.test(apiSource.value)) return userApi.apis[source]
   let api = getAPI(source)
   if (api) return api
   throw new Error('Api is not found')
 }
 
-export { apis, supportQuality }
+export { apis, getFallbackApi, supportQuality }

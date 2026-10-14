@@ -94,11 +94,11 @@ export default {
     const intervalSetters = new Map()
     const handleSetInterval = (platform, value) => {
       const seconds = Number(value)
-      // 空值/非法输入保持原设置，避免误清空触发「0 = 不限速」
+      // 空值/非法输入保持原设置；下限 1s——下载并发放开后 0 等于同平台背靠背连发解析请求
       if (!Number.isFinite(seconds) || seconds < 0) return
       if (!intervalSetters.has(platform)) {
         intervalSetters.set(platform, debounce(val => {
-          updateSetting({ [`accountSource.requestInterval.${platform}`]: Math.max(0, Math.round(val)) })
+          updateSetting({ [`accountSource.requestInterval.${platform}`]: Math.max(1, Math.round(val)) })
         }, 500))
       }
       intervalSetters.get(platform)(seconds)

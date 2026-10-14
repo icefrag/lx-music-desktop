@@ -199,7 +199,27 @@ export const logoutAccountSource = async(platform: LX.AccountSource.Platform): P
   return rendererInvoke<LX.AccountSource.Platform, LX.AccountSource.StatusMap>(WIN_MAIN_RENDERER_EVENT_NAME.account_source_logout, platform)
 }
 export const requestAccountSourceUrl = async(params: LX.AccountSource.UrlRequestParams): Promise<LX.AccountSource.UrlResult> => {
-  return rendererInvoke<LX.AccountSource.UrlRequestParams, LX.AccountSource.UrlResult>(WIN_MAIN_RENDERER_EVENT_NAME.account_source_request_url, params)
+  try {
+    return await rendererInvoke<LX.AccountSource.UrlRequestParams, LX.AccountSource.UrlResult>(WIN_MAIN_RENDERER_EVENT_NAME.account_source_request_url, params)
+  } catch (err: any) {
+    // electron 把主进程抛错包装成 “Error invoking remote method '<channel>': <原文>”，
+    // 剥壳后业务稳定前缀（account_expired:/risk_control:）才能被锚定匹配，错误文案也不再带 IPC 噪音
+    if (typeof err?.message == 'string') {
+      err.message = err.message.replace(/^Error invoking remote method '[^']+': /, '')
+    }
+    throw err
+  }
+}
+export const requestAccountSpillUrl = async(params: LX.AccountSource.UrlRequestParams): Promise<LX.AccountSource.UrlResult> => {
+  try {
+    return await rendererInvoke<LX.AccountSource.UrlRequestParams, LX.AccountSource.UrlResult>(WIN_MAIN_RENDERER_EVENT_NAME.account_source_spill_url, params)
+  } catch (err: any) {
+    // 与账号取链一致剥掉 electron 包装，错误文案不带 IPC 噪音
+    if (typeof err?.message == 'string') {
+      err.message = err.message.replace(/^Error invoking remote method '[^']+': /, '')
+    }
+    throw err
+  }
 }
 export const onAccountSourceStatus = (listener: LX.IpcRendererEventListenerParams<LX.AccountSource.StatusMap>): RemoveListener => {
   rendererOn(WIN_MAIN_RENDERER_EVENT_NAME.account_source_status, listener)

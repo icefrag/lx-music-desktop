@@ -18,6 +18,7 @@ declare global {
 
       type ErrorCode = 'url_failed'
       | 'account_expired'
+      | 'risk_control'
       | 'file_exists'
       | 'check_path'
       | 'response'

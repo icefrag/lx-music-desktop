@@ -1,7 +1,7 @@
 import crypto from 'node:crypto'
 import { httpFetch } from '@main/utils/request'
 import { getCookieHeader } from '../sessions'
-import { AuthExpiredError } from '../errors'
+import { AuthExpiredError, RiskControlError } from '../errors'
 
 // 网易云 weapi 公开加密参数
 const WEAPI_NONCE = '0CoJUm6Qyw8W8jud'
@@ -64,6 +64,8 @@ const weapiRequest = async<T = Record<string, unknown>>(path: string, data: obje
     throw new Error('网易音乐接口返回了无法解析的数据')
   }
   if (json?.code == 301) throw new AuthExpiredError('网易音乐登录凭证已过期')
+  // 460/-460 = 网易频率风控（Cheating），映射进冷却机制
+  if (json?.code == 460 || json?.code == -460) throw new RiskControlError('网易音乐触发频率限制，请稍后重试')
   if (json?.code != 200) throw new Error(`网易音乐接口返回异常(code=${json?.code})`)
   return json as T
 }

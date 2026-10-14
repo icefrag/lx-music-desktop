@@ -72,6 +72,9 @@
   "download_status_error_write": "歌曲儲存位置被占用或沒有寫入權限，請嘗試變更歌曲儲存目錄或重啟軟體或重啟電腦，錯誤詳情：",
   "download_status_start": "開始下載",
   "download_status_url_getting": "音樂連結獲取中...",
+  "download_status_risk_control_cooldown": "風控冷卻中，剩餘 {num} 分鐘",
+  "download_status_via_third_party": "已用三方源(野花)",
+  "download_status_spill_broken": "三方通道暫不可用，稍後自動重試",
   "download_status_write_queue": "資料寫入中（{num}）",
   "duplicate_list_tip": "你之前已收藏過清單「{name}」，是否需要更新裡面的歌曲？",
   "export": "匯出",
@@ -763,5 +766,5 @@
   "user_api_import_online__input_tip": "請輸入 HTTP 連結",
   "user_api_import_online__title": "從線上匯入自訂來源 API",
   "account_source__request_interval": "解析請求間隔(秒)",
-  "account_source__request_interval_tip": "賬號音源解析請求的最小間隔，防止平台風控限流。批量下載時同平台任務將按此節奏串行解析，0 為不限速（自擔風險）"
+  "account_source__request_interval_tip": "賬號音源解析請求的最小間隔，防止平台風控限流。批量下載時同平台任務將按此節奏串行解析，最小 1 秒"
 }

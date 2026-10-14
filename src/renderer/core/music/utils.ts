@@ -234,12 +234,13 @@ export const getPlayQuality = (highQuality: LX.Quality, musicInfo: LX.Music.Musi
   return type
 }
 
-export const getOnlineOtherSourceMusicUrl = async({ musicInfos, quality, onToggleSource, isRefresh, retryedSource = [] }: {
+export const getOnlineOtherSourceMusicUrl = async({ musicInfos, quality, onToggleSource, isRefresh, retryedSource = [], noRiskControlFallback = false }: {
   musicInfos: LX.Music.MusicInfoOnline[]
   quality?: LX.Quality
   onToggleSource: (musicInfo?: LX.Music.MusicInfoOnline) => void
   isRefresh: boolean
   retryedSource?: LX.OnlineSource[]
+  noRiskControlFallback?: boolean
 }): Promise<{
   url: string
   musicInfo: LX.Music.MusicInfoOnline
@@ -269,7 +270,7 @@ export const getOnlineOtherSourceMusicUrl = async({ musicInfos, quality, onToggl
 
   let reqPromise
   try {
-    reqPromise = musicSdk[musicInfo.source].getMusicUrl(toOldMusicInfo(musicInfo), itemQuality).promise
+    reqPromise = musicSdk[musicInfo.source].getMusicUrl(toOldMusicInfo(musicInfo), itemQuality, { noRiskControlFallback }).promise
   } catch (err: any) {
     reqPromise = Promise.reject(err)
   }
@@ -288,11 +289,13 @@ export const getOnlineOtherSourceMusicUrl = async({ musicInfos, quality, onToggl
 /**
  * 获取在线音乐URL
  */
-export const handleGetOnlineMusicUrl = async({ musicInfo, quality, onToggleSource, isRefresh, allowToggleSource }: {
+export const handleGetOnlineMusicUrl = async({ musicInfo, quality, onToggleSource, isRefresh, allowToggleSource, noRiskControlFallback = false }: {
   musicInfo: LX.Music.MusicInfoOnline
   quality?: LX.Quality
   isRefresh: boolean
   allowToggleSource: boolean
+  /** 下载链路使用：账号风控冷却时不静默回落免费源（见 api-source buildAccountApi） */
+  noRiskControlFallback?: boolean
   onToggleSource: (musicInfo?: LX.Music.MusicInfoOnline) => void
 }): Promise<{
   url: string
@@ -306,7 +309,7 @@ export const handleGetOnlineMusicUrl = async({ musicInfo, quality, onToggleSourc
 
   let reqPromise
   try {
-    reqPromise = musicSdk[musicInfo.source].getMusicUrl(toOldMusicInfo(musicInfo), targetQuality).promise
+    reqPromise = musicSdk[musicInfo.source].getMusicUrl(toOldMusicInfo(musicInfo), targetQuality, { noRiskControlFallback }).promise
   } catch (err: any) {
     reqPromise = Promise.reject(err)
   }
@@ -326,6 +329,7 @@ export const handleGetOnlineMusicUrl = async({ musicInfo, quality, onToggleSourc
           quality,
           isRefresh,
           retryedSource: [musicInfo.source],
+          noRiskControlFallback,
         })
       }
       throw err

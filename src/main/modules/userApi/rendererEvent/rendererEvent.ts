@@ -3,6 +3,7 @@ import { mainOn } from '@common/mainIpc'
 import USER_API_RENDERER_EVENT_NAME from './name'
 import { createWindow, getProxy, openDevTools, sendEvent } from '../main'
 import { getUserApis } from '../utils'
+import { handleSpillInit, handleSpillResponse } from '../spillChannel'
 import { sendShowUpdateAlert, sendStatusChange } from '@main/modules/winMain'
 
 let userApi: LX.UserApi.UserApiInfo
@@ -11,6 +12,7 @@ const requestQueue = new Map()
 const timeouts = new Map<string, NodeJS.Timeout>()
 interface InitParams {
   params: {
+    scope?: 'spill'
     status: boolean
     message: string
     data: LX.UserApi.UserApiInfo
@@ -18,6 +20,7 @@ interface InitParams {
 }
 interface ResponseParams {
   params: {
+    scope?: 'spill'
     status: boolean
     message: string
     data: {
@@ -28,6 +31,7 @@ interface ResponseParams {
 }
 interface UpdateInfoParams {
   params: {
+    scope?: 'spill'
     data: {
       log: string
       updateUrl: string
@@ -36,7 +40,10 @@ interface UpdateInfoParams {
 }
 
 export const init = () => {
-  const handleInit = ({ params: { status, message, data: apiInfo } }: InitParams) => {
+  const handleInit = ({ params }: InitParams) => {
+    // 三方通道沙箱的 init 走独立状态，不得覆盖当前生效音源的状态广播
+    if (params.scope === 'spill') return handleSpillInit(params)
+    const { status, message, data: apiInfo } = params
     // console.log('inited')
     // if (!status) {
     //   console.log('init failed:', message)
@@ -48,7 +55,9 @@ export const init = () => {
       : { status: false, apiInfo: userApi, message }
     sendStatusChange(apiStatus)
   }
-  const handleResponse = ({ params: { status, data: { requestKey, result }, message } }: ResponseParams) => {
+  const handleResponse = ({ params }: ResponseParams) => {
+    if (params.scope === 'spill') return handleSpillResponse(params)
+    const { status, data: { requestKey, result }, message } = params
     const request = requestQueue.get(requestKey)
     if (!request) return
     requestQueue.delete(requestKey)
@@ -62,7 +71,10 @@ export const init = () => {
   const handleOpenDevTools = () => {
     openDevTools()
   }
-  const handleShowUpdateAlert = ({ params: { data } }: UpdateInfoParams) => {
+  const handleShowUpdateAlert = ({ params }: UpdateInfoParams) => {
+    // 三方通道为内置野花（allowShowUpdateAlert: false），升级提示直接忽略
+    if (params.scope === 'spill') return
+    const { data } = params
     if (!userApi.allowShowUpdateAlert) return
     sendShowUpdateAlert({
       name: userApi.name,

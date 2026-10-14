@@ -151,7 +151,7 @@ const defaultSetting: LX.AppSetting = {
   'openAPI.apiSourceAliases': '{"yehua":"user_api_builtin_yehua","yecao":"user_api_builtin_yecao"}',
 
   'accountSource.requestInterval.kg': 8,
-  'accountSource.requestInterval.tx': 3,
+  'accountSource.requestInterval.tx': 5,
   'accountSource.requestInterval.wy': 3,
 
   // 'theme.id': 'blue_plus',

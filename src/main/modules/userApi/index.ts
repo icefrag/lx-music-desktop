@@ -1,6 +1,7 @@
 import { closeWindow } from './main'
 import { getUserApis, importApi as handleImportApi, removeApi as handleRemoveApi, setAllowShowUpdateAlert as saveAllowShowUpdateAlert } from './utils'
 import { loadApi, setAllowShowUpdateAlert as setRendererEventAllowShowUpdateAlert, init } from './rendererEvent/rendererEvent'
+import { default as initSpillChannel } from './spillChannel'
 
 let userApiId: string | null
 
@@ -42,6 +43,7 @@ export * from './rendererEvent/rendererEvent'
 
 export default () => {
   init()
+  initSpillChannel()
 
   global.lx.event_app.on('main_window_close', () => {
     void closeWindow()

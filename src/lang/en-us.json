@@ -72,6 +72,9 @@
   "download_status_error_write": "The download location is occupied or does not have write permission. Please try to change the download directory or restart the app/device. Error details: ",
   "download_status_start": "Start download",
   "download_status_url_getting": "Getting song link...",
+  "download_status_risk_control_cooldown": "Risk-control cooldown, {num} min(s) remaining",
+  "download_status_via_third_party": "Resolved via third-party source (Yehua)",
+  "download_status_spill_broken": "Third-party channel unavailable, retrying soon",
   "download_status_write_queue": "Writing data in progress ({num})",
   "duplicate_list_tip": "You have collected this list \"{name}\" before. Do you need to update the songs in it?",
   "export": "Export",
@@ -763,5 +766,5 @@
   "user_api_import_online__input_tip": "Please enter an HTTP link",
   "user_api_import_online__title": "Import Music API from network.",
   "account_source__request_interval": "Request interval (s)",
-  "account_source__request_interval_tip": "Minimum interval between account-source resolution requests to avoid platform rate limiting. Batch downloads of the same platform are resolved serially at this pace; 0 disables throttling (at your own risk)"
+  "account_source__request_interval_tip": "Minimum interval between account-source resolution requests to avoid platform rate limiting. Batch downloads of the same platform are resolved serially at this pace; minimum 1 second"
 }
