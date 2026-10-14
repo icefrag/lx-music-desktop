@@ -75,7 +75,7 @@
   "download_status_start": "Start download",
   "download_status_url_getting": "Getting song link...",
   "download_status_risk_control_cooldown": "Risk-control cooldown, {num} min(s) remaining",
-  "download_status_via_third_party": "Resolved via third-party source (Yehua)",
+  "download_status_via_third_party": "Resolved via third-party source ({name})",
   "download_status_spill_broken": "Third-party channel unavailable, retrying soon",
   "download_status_channel_wait_timeout": "Channel recovery failed repeatedly, retry stopped",
   "download_status_write_queue": "Writing data in progress ({num})",

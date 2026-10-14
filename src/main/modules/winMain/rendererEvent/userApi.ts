@@ -51,4 +51,7 @@ export const sendStatusChange = (status: LX.UserApi.UserApiStatus) => {
 export const sendShowUpdateAlert = (info: LX.UserApi.UserApiUpdateInfo) => {
   sendEvent(WIN_MAIN_RENDERER_EVENT_NAME.user_api_show_update_alert, info)
 }
+export const sendPoolMemberInfo = (info: LX.AccountSource.PoolMemberInfo) => {
+  sendEvent(WIN_MAIN_RENDERER_EVENT_NAME.account_source_pool_member, info)
+}
 

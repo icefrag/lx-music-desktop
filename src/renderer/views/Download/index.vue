@@ -216,8 +216,10 @@ export default {
       const musicInfo = downloadInfo.metadata.musicInfo
       const source = musicInfo.meta.toggleMusicInfo?.source ?? musicInfo.source
       const name = sourceNames[source] ?? source
-      // 三方通道（内置野花）解析的任务追加通道标记；账号解析为主通道不标
-      return downloadInfo.metadata.sourceChannel === 'yehua' ? `${name}·野花` : name
+      // 三方通道池成员解析的任务追加成员名；账号解析为主通道不标（'yehua' 为旧任务的野花兼容值）
+      const channel = downloadInfo.metadata.sourceChannel
+      if (!channel || channel === 'account') return name
+      return `${name}·${channel === 'yehua' ? '野花' : channel}`
     }
     return {
       listRef,

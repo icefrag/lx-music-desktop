@@ -75,7 +75,7 @@
   "download_status_start": "다운로드 시작",
   "download_status_url_getting": "노래 링크를 가져오는 중...",
   "download_status_risk_control_cooldown": "리스크 컨트롤 쿨다운 중, {num}분 남음",
-  "download_status_via_third_party": "서드파티 소스로 해석됨(야화)",
+  "download_status_via_third_party": "서드파티 소스로 해석됨({name})",
   "download_status_spill_broken": "서드파티 채널 사용 불가, 곧 자동 재시도",
   "download_status_channel_wait_timeout": "채널 복구 반복 실패, 재시도 중지",
   "download_status_write_queue": "데이터 쓰는 중 ({num})",

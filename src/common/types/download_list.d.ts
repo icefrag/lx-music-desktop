@@ -73,7 +73,7 @@ declare global {
           filePath: string
           savePath?: string
           apiSource?: string
-          /** 解析通道：account=账号音源，yehua=三方通道（内置野花）；缺省=非双通道路径 */
+          /** 解析通道：account=账号音源，yehua=三方野花（旧任务兼容值），其他=音源池成员名（ADR 0006）；缺省=非双通道路径 */
           sourceChannel?: string
           listId?: string
         }

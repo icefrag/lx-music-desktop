@@ -75,7 +75,7 @@
   "download_status_start": "开始下载",
   "download_status_url_getting": "音乐链接获取中...",
   "download_status_risk_control_cooldown": "风控冷却中，剩余 {num} 分钟",
-  "download_status_via_third_party": "已用三方源(野花)",
+  "download_status_via_third_party": "已用三方源({name})",
   "download_status_spill_broken": "三方通道暂不可用，稍后自动重试",
   "download_status_channel_wait_timeout": "通道多次恢复失败，已停止重试",
   "download_status_write_queue": "数据写入中（{num}）",

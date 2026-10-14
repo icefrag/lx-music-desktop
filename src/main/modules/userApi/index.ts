@@ -1,7 +1,7 @@
 import { closeWindow } from './main'
 import { getUserApis, importApi as handleImportApi, removeApi as handleRemoveApi, setAllowShowUpdateAlert as saveAllowShowUpdateAlert } from './utils'
 import { loadApi, setAllowShowUpdateAlert as setRendererEventAllowShowUpdateAlert, init } from './rendererEvent/rendererEvent'
-import { default as initSpillChannel } from './spillChannel'
+import initSpillChannel, { closePoolChannels } from './spillChannel'
 
 let userApiId: string | null
 
@@ -19,6 +19,8 @@ export const removeApi = async(ids: string[]): Promise<LX.UserApi.UserApiInfo[]>
     await closeWindow()
   }
   handleRemoveApi(ids)
+  // 被删的自定义源同时出池（ADR 0006）：销毁其沙箱，防僵尸成员继续接活
+  void closePoolChannels(ids)
   return getUserApis()
 }
 
@@ -47,5 +49,6 @@ export default () => {
 
   global.lx.event_app.on('main_window_close', () => {
     void closeWindow()
+    void closePoolChannels([...getApiList().map(a => a.id)])
   })
 }

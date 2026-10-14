@@ -227,6 +227,12 @@ export const onAccountSourceStatus = (listener: LX.IpcRendererEventListenerParam
     rendererOff(WIN_MAIN_RENDERER_EVENT_NAME.account_source_status, listener)
   }
 }
+export const onPoolMemberInfo = (listener: LX.IpcRendererEventListenerParams<LX.AccountSource.PoolMemberInfo>): RemoveListener => {
+  rendererOn(WIN_MAIN_RENDERER_EVENT_NAME.account_source_pool_member, listener)
+  return () => {
+    rendererOff(WIN_MAIN_RENDERER_EVENT_NAME.account_source_pool_member, listener)
+  }
+}
 
 // export const setDesktopLyricInfo = (type, data, info) => {
 //   rendererSend(WIN_MAIN_RENDERER_EVENT_NAME.set_lyric_info, {

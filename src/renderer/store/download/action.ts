@@ -18,7 +18,7 @@ import { getFallbackApi } from '@renderer/utils/musicSdk/api-source'
 import { DOWNLOAD_STATUS } from '@common/constants'
 import { proxy } from '../index'
 import { buildSavePath } from './utils'
-import { isSpillBroken, resolveViaSpill, SPILL_API_ID, spillBrokenUntil } from './spillChannel'
+import { poolEarliestRecovery, poolMemberBegin, poolMemberEnd, poolMemberInFlight, poolPickMember, resolveViaPoolMember, SPILL_API_ID } from './spillChannel'
 
 const waitingUpdateTasks = new Map<string, LX.Download.ListItem>()
 let timer: NodeJS.Timeout | null = null
@@ -34,9 +34,8 @@ const throttleUpdateTask = (tasks: LX.Download.ListItem[]) => {
 
 const runingTask = new Map<string, LX.Download.ListItem>()
 
-// 双通道分发（ADR 0005）：跨并发 getUrl 调用共享的在途计数，实现「在途少者优先」
+// 双通道分发（ADR 0005）：跨并发 getUrl 调用共享的账号在途计数（池成员在途计数在 spillChannel 内），实现「在途少者优先」
 let accountInFlight = 0
-let spillInFlight = 0
 // 恢复期退回等待的任务的最早重试时间：到点前 getStartTask 不重选（唤醒交给恢复定时器）
 const channelWaitRetryAt = new Map<string, number>()
 // 恢复期等待轮数上限：通道反复恢复失败的任务最终报错，而非无限空转
@@ -225,7 +224,7 @@ const isRiskControlError = (err: unknown) => {
   return /^risk_control: /.test(err instanceof Error ? err.message : String(err))
 }
 
-const getUrl = async(downloadInfo: LX.Download.ListItem, isRefresh: boolean = false): Promise<{ url: string, errorCode?: LX.Download.ErrorCode, wait?: boolean, viaSpill?: boolean }> => {
+const getUrl = async(downloadInfo: LX.Download.ListItem, isRefresh: boolean = false): Promise<{ url: string, errorCode?: LX.Download.ErrorCode, wait?: boolean, viaSpill?: boolean, memberName?: string }> => {
   let toggleMusicInfo = downloadInfo.metadata.musicInfo.meta.toggleMusicInfo
   const toResult = async(promise: Promise<string>): Promise<{ url: string, errorCode?: LX.Download.ErrorCode }> => promise.then(url => ({ url }), err => {
     // 诊断日志：真机验证期观察下载取链失败原因，稳定后移除
@@ -256,8 +255,8 @@ const getUrl = async(downloadInfo: LX.Download.ListItem, isRefresh: boolean = fa
     }))
   }
 
-  // 双通道平级分发（ADR 0005）：谁先空出来谁服务，同时空闲优先账号（官方直链 tie-break）；
-  // 可用性 = 未冷却/未熔断 且 在途请求数更少（在途少 ≈ 更早腾出），失败自动换对侧重试一次
+  // 双通道平级分发（ADR 0005/0006）：账号 ↔ 音源池；谁先空出来谁服务，同时空闲优先账号（官方直链 tie-break）；
+  // 池侧按（平台×128k）过滤候选、失败池内转移，单次解析池尝试 ≤2；对侧也不可用再走兜底链
   let errorCode: LX.Download.ErrorCode | undefined
   let sawRiskControl = false
 
@@ -282,42 +281,49 @@ const getUrl = async(downloadInfo: LX.Download.ListItem, isRefresh: boolean = fa
       accountInFlight--
     }
   }
-  const attemptSpill = async(): Promise<{ url: string, errorCode?: LX.Download.ErrorCode, viaSpill?: boolean } | null> => {
-    spillInFlight++
-    try {
-      const r = await toResult(resolveViaSpill(source as LX.AccountSource.Platform, quality, toOldMusicInfo(musicInfo)))
+
+  // 池侧本次解析的尝试预算；triedMemberIds 供兜底链跳过已试成员
+  let poolBudget = quality == '128k' ? 2 : 0
+  const triedMemberIds: string[] = []
+  const tryPool = async(): Promise<{ url: string, errorCode?: LX.Download.ErrorCode, viaSpill?: boolean, memberName?: string } | null> => {
+    while (poolBudget > 0) {
+      const member = await poolPickMember(source, triedMemberIds)
+      if (!member) return null
+      poolBudget--
+      triedMemberIds.push(member.id)
+      poolMemberBegin(member.id)
+      let r: { url: string, errorCode?: LX.Download.ErrorCode }
+      try {
+        r = await toResult(resolveViaPoolMember(member, source as LX.AccountSource.Platform, quality, toOldMusicInfo(musicInfo)))
+      } finally {
+        poolMemberEnd(member.id)
+      }
       if (r.url) {
-        downloadInfo.metadata.sourceChannel = 'yehua'
-        return { ...r, viaSpill: true }
+        // 野花沿用旧标识，兼容已持久化任务的徽标（download_list.d.ts sourceChannel）
+        downloadInfo.metadata.sourceChannel = member.id == SPILL_API_ID ? 'yehua' : member.name
+        return { ...r, viaSpill: true, memberName: member.name }
       }
       errorCode = r.errorCode ?? errorCode
-      return null
-    } finally {
-      spillInFlight--
     }
+    return null
   }
 
   const accountFree = !isPlatformCoolingDown(source)
-  const spillFree = quality == '128k' && !isSpillBroken()
-  if (!accountFree && !spillFree) {
+  const firstMember = quality == '128k' ? await poolPickMember(source) : null
+  if (!accountFree && !firstMember) {
     // 双通道都在恢复期：回等待，恢复点自动唤醒
     return { url: '', errorCode, wait: true }
   }
-  const firstSpill = !accountFree || (spillFree && accountInFlight > spillInFlight)
-  let channelResult = firstSpill ? await attemptSpill() : await attemptAccount()
+  const firstAccount = accountFree && (!firstMember || accountInFlight <= poolMemberInFlight(firstMember.id))
+  let channelResult = firstAccount ? await attemptAccount() : await tryPool()
   if (channelResult?.url) return channelResult
-  if (firstSpill) {
-    if (accountFree) {
-      channelResult = await attemptAccount()
-      if (channelResult?.url) return channelResult
-    }
-  } else if (spillFree) {
-    channelResult = await attemptSpill()
-    if (channelResult?.url) return channelResult
-  }
+  channelResult = firstAccount
+    ? await tryPool()
+    : (accountFree ? await attemptAccount() : null)
+  if (channelResult?.url) return channelResult
 
-  // 兜底链（生效音源）：风控错误不回落（冷却可恢复，回等待重试）；生效音源即野花时上面已试过
-  if (!sawRiskControl && apiSource.value != SPILL_API_ID) {
+  // 兜底链（生效音源）：风控错误不回落（冷却可恢复，回等待重试）；生效音源已在池里试过时跳过
+  if (!sawRiskControl && apiSource.value != null && !triedMemberIds.includes(apiSource.value)) {
     const fallbackApi = getFallbackApi(source)
     if (fallbackApi?.getMusicUrl) {
       const fallbackResult = await toResult(fallbackApi.getMusicUrl(toOldMusicInfo(musicInfo), quality).promise)
@@ -338,8 +344,8 @@ const getUrl = async(downloadInfo: LX.Download.ListItem, isRefresh: boolean = fa
     errorCode = toggleResult.errorCode ?? errorCode
   }
 
-  // 有通道仍在恢复期（账号冷却/三方熔断）→ 回等待而不是报错
-  return { url: '', errorCode, wait: isPlatformCoolingDown(source) || isSpillBroken() }
+  // 有通道仍在恢复期（账号冷却/池成员熔断）→ 回等待而不是报错
+  return { url: '', errorCode, wait: isPlatformCoolingDown(source) || poolEarliestRecovery() > 0 }
 }
 const handleRefreshUrl = (downloadInfo: LX.Download.ListItem) => {
   setStatusText(downloadInfo, window.i18n.t('download_status_error_refresh_url'))
@@ -390,12 +396,13 @@ const handleError = (downloadInfo: LX.Download.ListItem, message?: string, error
 const handleStartTask = async(downloadInfo: LX.Download.ListItem) => {
   console.log('[download] handleStartTask:', downloadInfo.metadata.musicInfo.name, 'metaUrl=', JSON.stringify(downloadInfo.metadata.url ?? null), 'quality=', downloadInfo.metadata.quality)
   let viaThirdParty = false
+  let thirdPartyMemberName = ''
   if (!downloadInfo.metadata.url) {
     setStatusText(downloadInfo, window.i18n.t('download_status_url_getting'))
     const urlResult = await getUrl(downloadInfo)
     console.log('[download] urlResult:', urlResult.url ? 'got url' : 'EMPTY', urlResult.errorCode ?? '', urlResult.url ?? '')
     if (!urlResult.url) {
-      // 通道暂不可用（账号冷却/三方熔断）：退回等待队列并设退避，恢复点由冷却 watcher/熔断定时器唤醒；
+      // 通道暂不可用（账号冷却/池成员熔断）：退回等待队列并设退避，恢复点由冷却 watcher/熔断定时器唤醒；
       // 反复恢复失败的任务按轮数上限报错，避免注定失败的歌无限空转
       if (urlResult.wait) {
         runingTask.delete(downloadInfo.id)
@@ -408,13 +415,14 @@ const handleStartTask = async(downloadInfo: LX.Download.ListItem) => {
         channelWaitCount.set(downloadInfo.id, waitCount)
         setStatus(downloadInfo, DOWNLOAD_STATUS.WAITING)
         markChannelWaiting(downloadInfo)
-        const recoveries = [spillBrokenUntil()]
+        const recoveries = [poolEarliestRecovery()]
         const waitSource = downloadInfo.metadata.musicInfo.source
         if (isPlatformCoolingDown(waitSource)) {
           recoveries.push(accountSource.status[waitSource as LX.AccountSource.Platform]?.cooldownUntil ?? 0)
         }
         channelWaitRetryAt.set(downloadInfo.id, Math.min(...recoveries) + 1000)
-        if (isSpillBroken()) setTimeout(() => { void checkStartTask() }, spillBrokenUntil() - Date.now() + 1000)
+        const poolRecoveryAt = poolEarliestRecovery()
+        if (poolRecoveryAt > Date.now()) setTimeout(() => { void checkStartTask() }, poolRecoveryAt - Date.now() + 1000)
         void checkStartTask()
         return
       }
@@ -422,6 +430,7 @@ const handleStartTask = async(downloadInfo: LX.Download.ListItem) => {
       return
     }
     viaThirdParty = urlResult.viaSpill ?? false
+    thirdPartyMemberName = urlResult.memberName ?? ''
     setUrl(downloadInfo, urlResult.url)
     if (downloadInfo.status != DOWNLOAD_STATUS.RUN) return
   }
@@ -438,7 +447,7 @@ const handleStartTask = async(downloadInfo: LX.Download.ListItem) => {
       case 'start':
         setStatus(downloadInfo, DOWNLOAD_STATUS.RUN)
         // 三方通道标记在 start 之后写，避免被「开始下载」文案同帧覆盖
-        if (viaThirdParty) setStatusText(downloadInfo, window.i18n.t('download_status_via_third_party'))
+        if (viaThirdParty) setStatusText(downloadInfo, window.i18n.t('download_status_via_third_party', { name: thirdPartyMemberName }))
         break
       case 'complete':
         downloadInfo.progress = 100

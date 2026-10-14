@@ -3,7 +3,7 @@ import { mainOn } from '@common/mainIpc'
 import USER_API_RENDERER_EVENT_NAME from './name'
 import { createWindow, getProxy, openDevTools, sendEvent } from '../main'
 import { getUserApis } from '../utils'
-import { handleSpillInit, handleSpillResponse } from '../spillChannel'
+import { handlePoolInit, handlePoolResponse } from '../spillChannel'
 import { sendShowUpdateAlert, sendStatusChange } from '@main/modules/winMain'
 
 let userApi: LX.UserApi.UserApiInfo
@@ -12,7 +12,8 @@ const requestQueue = new Map()
 const timeouts = new Map<string, NodeJS.Timeout>()
 interface InitParams {
   params: {
-    scope?: 'spill'
+    /** 三方通道池成员 id（preload 经 --lx-spill-channel=<id> 注入）；生效音源沙箱无此标签 */
+    scope?: string
     status: boolean
     message: string
     data: LX.UserApi.UserApiInfo
@@ -20,7 +21,7 @@ interface InitParams {
 }
 interface ResponseParams {
   params: {
-    scope?: 'spill'
+    scope?: string
     status: boolean
     message: string
     data: {
@@ -31,7 +32,7 @@ interface ResponseParams {
 }
 interface UpdateInfoParams {
   params: {
-    scope?: 'spill'
+    scope?: string
     data: {
       log: string
       updateUrl: string
@@ -41,8 +42,11 @@ interface UpdateInfoParams {
 
 export const init = () => {
   const handleInit = ({ params }: InitParams) => {
-    // 三方通道沙箱的 init 走独立状态，不得覆盖当前生效音源的状态广播
-    if (params.scope === 'spill') return handleSpillInit(params)
+    // 三方通道池成员的 init 走独立状态，不得覆盖当前生效音源的状态广播
+    if (params.scope != null) {
+      handlePoolInit(params.scope, params)
+      return
+    }
     const { status, message, data: apiInfo } = params
     // console.log('inited')
     // if (!status) {
@@ -56,7 +60,10 @@ export const init = () => {
     sendStatusChange(apiStatus)
   }
   const handleResponse = ({ params }: ResponseParams) => {
-    if (params.scope === 'spill') return handleSpillResponse(params)
+    if (params.scope != null) {
+      handlePoolResponse(params.scope, params)
+      return
+    }
     const { status, data: { requestKey, result }, message } = params
     const request = requestQueue.get(requestKey)
     if (!request) return
@@ -72,8 +79,8 @@ export const init = () => {
     openDevTools()
   }
   const handleShowUpdateAlert = ({ params }: UpdateInfoParams) => {
-    // 三方通道为内置野花（allowShowUpdateAlert: false），升级提示直接忽略
-    if (params.scope === 'spill') return
+    // 三方通道池成员（scope=成员id）的升级提示直接忽略，不归属到当前生效音源
+    if (params.scope != null) return
     const { data } = params
     if (!userApi.allowShowUpdateAlert) return
     sendShowUpdateAlert({
