@@ -34,6 +34,12 @@ const throttleUpdateTask = (tasks: LX.Download.ListItem[]) => {
 
 const runingTask = new Map<string, LX.Download.ListItem>()
 
+// 双通道分发（ADR 0005）：跨并发 getUrl 调用共享的在途计数，实现「在途少者优先」
+let accountInFlight = 0
+let spillInFlight = 0
+// 恢复期退回等待的任务的最早重试时间：到点前 getStartTask 不重选（唤醒交给恢复定时器）
+const channelWaitRetryAt = new Map<string, number>()
+
 // const initDownloadList = (list: LX.Download.ListItem[]) => {
 //   downloadList.splice(0, downloadList.length, ...list)
 // }
@@ -216,7 +222,7 @@ const isRiskControlError = (err: unknown) => {
   return /^risk_control: /.test(err instanceof Error ? err.message : String(err))
 }
 
-const getUrl = async(downloadInfo: LX.Download.ListItem, isRefresh: boolean = false): Promise<{ url: string, errorCode?: LX.Download.ErrorCode, wait?: boolean }> => {
+const getUrl = async(downloadInfo: LX.Download.ListItem, isRefresh: boolean = false): Promise<{ url: string, errorCode?: LX.Download.ErrorCode, wait?: boolean, viaSpill?: boolean }> => {
   let toggleMusicInfo = downloadInfo.metadata.musicInfo.meta.toggleMusicInfo
   const toResult = async(promise: Promise<string>): Promise<{ url: string, errorCode?: LX.Download.ErrorCode }> => promise.then(url => ({ url }), err => {
     // 诊断日志：真机验证期观察下载取链失败原因，稳定后移除
@@ -251,8 +257,6 @@ const getUrl = async(downloadInfo: LX.Download.ListItem, isRefresh: boolean = fa
   // 可用性 = 未冷却/未熔断 且 在途请求数更少（在途少 ≈ 更早腾出），失败自动换对侧重试一次
   let errorCode: LX.Download.ErrorCode | undefined
   let sawRiskControl = false
-  let accountInFlight = 0
-  let spillInFlight = 0
 
   const attemptAccount = async(): Promise<{ url: string, errorCode?: LX.Download.ErrorCode } | null> => {
     accountInFlight++
@@ -272,14 +276,11 @@ const getUrl = async(downloadInfo: LX.Download.ListItem, isRefresh: boolean = fa
       accountInFlight--
     }
   }
-  const attemptSpill = async(): Promise<{ url: string, errorCode?: LX.Download.ErrorCode } | null> => {
+  const attemptSpill = async(): Promise<{ url: string, errorCode?: LX.Download.ErrorCode, viaSpill?: boolean } | null> => {
     spillInFlight++
     try {
       const r = await toResult(resolveViaSpill(source as LX.AccountSource.Platform, quality, toOldMusicInfo(musicInfo)))
-      if (r.url) {
-        setStatusText(downloadInfo, window.i18n.t('download_status_via_third_party'))
-        return r
-      }
+      if (r.url) return { ...r, viaSpill: true }
       errorCode = r.errorCode ?? errorCode
       return null
     } finally {
@@ -378,16 +379,23 @@ const handleError = (downloadInfo: LX.Download.ListItem, message?: string, error
 
 const handleStartTask = async(downloadInfo: LX.Download.ListItem) => {
   console.log('[download] handleStartTask:', downloadInfo.metadata.musicInfo.name, 'metaUrl=', JSON.stringify(downloadInfo.metadata.url ?? null), 'quality=', downloadInfo.metadata.quality)
+  let viaThirdParty = false
   if (!downloadInfo.metadata.url) {
     setStatusText(downloadInfo, window.i18n.t('download_status_url_getting'))
     const urlResult = await getUrl(downloadInfo)
     console.log('[download] urlResult:', urlResult.url ? 'got url' : 'EMPTY', urlResult.errorCode ?? '', urlResult.url ?? '')
     if (!urlResult.url) {
-      // 通道暂不可用（账号冷却/三方熔断）：退回等待队列，任一通道恢复即自动唤醒，不降级也不报错
+      // 通道暂不可用（账号冷却/三方熔断）：退回等待队列并设退避，恢复点由冷却 watcher/熔断定时器唤醒
       if (urlResult.wait) {
         runingTask.delete(downloadInfo.id)
         setStatus(downloadInfo, DOWNLOAD_STATUS.WAITING)
         markChannelWaiting(downloadInfo)
+        const recoveries = [spillBrokenUntil()]
+        const waitSource = downloadInfo.metadata.musicInfo.source
+        if (isPlatformCoolingDown(waitSource)) {
+          recoveries.push(accountSource.status[waitSource as LX.AccountSource.Platform]?.cooldownUntil ?? 0)
+        }
+        channelWaitRetryAt.set(downloadInfo.id, Math.min(...recoveries) + 1000)
         if (isSpillBroken()) setTimeout(() => { void checkStartTask() }, spillBrokenUntil() - Date.now() + 1000)
         void checkStartTask()
         return
@@ -395,6 +403,7 @@ const handleStartTask = async(downloadInfo: LX.Download.ListItem) => {
       handleError(downloadInfo, window.i18n.t('download_status_error_url_failed'), urlResult.errorCode ?? 'url_failed')
       return
     }
+    viaThirdParty = urlResult.viaSpill ?? false
     setUrl(downloadInfo, urlResult.url)
     if (downloadInfo.status != DOWNLOAD_STATUS.RUN) return
   }
@@ -410,6 +419,8 @@ const handleStartTask = async(downloadInfo: LX.Download.ListItem) => {
     switch (event.action) {
       case 'start':
         setStatus(downloadInfo, DOWNLOAD_STATUS.RUN)
+        // 三方通道标记在 start 之后写，避免被「开始下载」文案同帧覆盖
+        if (viaThirdParty) setStatusText(downloadInfo, window.i18n.t('download_status_via_third_party'))
         break
       case 'complete':
         downloadInfo.progress = 100
@@ -482,6 +493,12 @@ const getStartTask = (list: LX.Download.ListItem[]): LX.Download.ListItem | null
   const waitList = list.filter(item => {
     if (item.status == DOWNLOAD_STATUS.WAITING) {
       if (sourceNotReady) return false
+      // 恢复期退避：未到重试时间的任务不重选（唤醒交给冷却 watcher 与熔断定时器）
+      const retryAt = channelWaitRetryAt.get(item.id)
+      if (retryAt != null) {
+        if (retryAt > Date.now()) return false
+        channelWaitRetryAt.delete(item.id)
+      }
       // 任务钉住的音源与当前不一致时挂起等待，避免切源后排队的任务拿错音源解析
       const pinned = item.metadata.apiSource
       if (pinned && pinned != apiSource.value && userApi.list.some(api => api.id == pinned)) return false
@@ -611,6 +628,7 @@ export const removeDownloadTasks = async(ids: string[]) => {
       void window.lx.worker.download.removeTask(task.id)
       runingTask.delete(task.id)
     }
+    channelWaitRetryAt.delete(task.id)
     return !idsSet.has(task.id)
   })
   downloadList.splice(0, downloadList.length)

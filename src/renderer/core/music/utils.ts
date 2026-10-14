@@ -274,16 +274,16 @@ export const getOnlineOtherSourceMusicUrl = async({ musicInfos, quality, onToggl
   } catch (err: any) {
     reqPromise = Promise.reject(err)
   }
-  // retryedSource.includes(musicInfo.source)
-  // eslint-disable-next-line @typescript-eslint/promise-function-async
-  return reqPromise.then(({ url, type }: { url: string, type: LX.Quality }) => {
-    return { musicInfo, url, quality: type, isFromCache: false }
+    // retryedSource.includes(musicInfo.source)
     // eslint-disable-next-line @typescript-eslint/promise-function-async
-  }).catch((err: any) => {
-    if (err.message == requestMsg.tooManyRequests) throw err
-    console.log(err)
-    return getOnlineOtherSourceMusicUrl({ musicInfos, quality, onToggleSource, isRefresh, retryedSource })
-  })
+    return reqPromise.then(({ url, type }: { url: string, type: LX.Quality }) => {
+      return { musicInfo, url, quality: type, isFromCache: false }
+      // eslint-disable-next-line @typescript-eslint/promise-function-async
+    }).catch((err: any) => {
+      if (err.message == requestMsg.tooManyRequests) throw err
+      console.log(err)
+      return getOnlineOtherSourceMusicUrl({ musicInfos, quality, onToggleSource, isRefresh, retryedSource, noRiskControlFallback })
+    })
 }
 
 /**
