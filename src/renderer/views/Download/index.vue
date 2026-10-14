@@ -215,7 +215,9 @@ export default {
     const getSourceName = (downloadInfo) => {
       const musicInfo = downloadInfo.metadata.musicInfo
       const source = musicInfo.meta.toggleMusicInfo?.source ?? musicInfo.source
-      return sourceNames[source] ?? source
+      const name = sourceNames[source] ?? source
+      // 三方通道（内置野花）解析的任务追加通道标记；账号解析为主通道不标
+      return downloadInfo.metadata.sourceChannel === 'yehua' ? `${name}·野花` : name
     }
     return {
       listRef,

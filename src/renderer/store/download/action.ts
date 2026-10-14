@@ -271,7 +271,10 @@ const getUrl = async(downloadInfo: LX.Download.ListItem, isRefresh: boolean = fa
         allowToggleSource: false,
         noRiskControlFallback: true,
       }))
-      if (r.url) return r
+      if (r.url) {
+        downloadInfo.metadata.sourceChannel = 'account'
+        return r
+      }
       errorCode = r.errorCode ?? errorCode
       sawRiskControl = r.errorCode == 'risk_control'
       return null
@@ -283,7 +286,10 @@ const getUrl = async(downloadInfo: LX.Download.ListItem, isRefresh: boolean = fa
     spillInFlight++
     try {
       const r = await toResult(resolveViaSpill(source as LX.AccountSource.Platform, quality, toOldMusicInfo(musicInfo)))
-      if (r.url) return { ...r, viaSpill: true }
+      if (r.url) {
+        downloadInfo.metadata.sourceChannel = 'yehua'
+        return { ...r, viaSpill: true }
+      }
       errorCode = r.errorCode ?? errorCode
       return null
     } finally {

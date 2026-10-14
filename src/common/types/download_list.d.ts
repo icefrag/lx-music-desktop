@@ -71,6 +71,8 @@ declare global {
           filePath: string
           savePath?: string
           apiSource?: string
+          /** 解析通道：account=账号音源，yehua=三方通道（内置野花）；缺省=非双通道路径 */
+          sourceChannel?: string
           listId?: string
         }
       }
