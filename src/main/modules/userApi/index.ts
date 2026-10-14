@@ -14,13 +14,17 @@ export const importApi = async(script: string): Promise<LX.UserApi.ImportUserApi
   }
 }
 export const removeApi = async(ids: string[]): Promise<LX.UserApi.UserApiInfo[]> => {
-  if (userApiId && ids.includes(userApiId)) {
+  // 内置音源是应用基础设施（gz 快照随二进制分发、重启自动复原），不可删除；UI 藏了删除按钮，此处兜底拒绝
+  const removableIds = ids.filter(id => !id.startsWith('user_api_builtin_'))
+  if (userApiId && removableIds.includes(userApiId)) {
     userApiId = null
     await closeWindow()
   }
-  handleRemoveApi(ids)
-  // 被删的自定义源同时出池（ADR 0006）：销毁其沙箱，防僵尸成员继续接活
-  void closePoolChannels(ids)
+  if (removableIds.length) {
+    handleRemoveApi(removableIds)
+    // 被删的自定义源同时出池（ADR 0006）：销毁其沙箱，防僵尸成员继续接活
+    void closePoolChannels(removableIds)
+  }
   return getUserApis()
 }
 
