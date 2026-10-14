@@ -52,13 +52,13 @@ const cancelPending = (err: Error) => {
 }
 
 export const openLogin = async(platform: LX.AccountSource.Platform, opts: { force?: boolean } = {}) => {
+  // force（重新登录）：旧 token 已被服务端判定失效，清掉分区会话让页面必然呈现登录表单，
+  // 重新登录 = 真正的重新认证；清空后走常规捕获流程（新登录 cookie 出现即自动收网）
+  if (opts.force) await clearSession(platform)
   return new Promise<string>((resolve, reject) => {
     cancelPending(new Error('已取消'))
 
     const config = PLATFORM_CONFIGS[platform]
-    // force（重新登录）：旧 token 已被服务端判定失效，清掉分区会话让页面必然呈现登录表单，
-    // 重新登录 = 真正的重新认证；清空后走常规捕获流程（新登录 cookie 出现即自动收网）
-    if (opts.force) await clearSession(platform)
     const unwatch = watchLoginCookie(platform, settle)
 
     const window = new BrowserWindow({
