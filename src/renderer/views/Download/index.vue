@@ -40,6 +40,7 @@
             </div>
             <div class="list-item-cell auto name">
               <span class="select name" :aria-label="getName(item)">{{ getName(item) }}</span>
+              <span class="no-select" :class="$style.source">{{ getSourceName(item) }}</span>
             </div>
             <div class="list-item-cell" style="flex: 0 0 20%;">{{ item.progress }}%<span v-if="item.status == downloadStatus.RUN && item.speed"> - {{ item.speed }}/s</span></div>
             <div class="list-item-cell" style="flex: 0 0 22%;" :aria-label="item.statusText">{{ item.statusText }}</div>
@@ -81,6 +82,7 @@ import useMusicAdd from './useMusicAdd'
 import { downloadStatus } from '@renderer/store/download/state'
 import { appSetting } from '@renderer/store/setting'
 import { formatMusicName } from '@renderer/utils'
+import musicSdk from '@renderer/utils/musicSdk'
 
 export default {
   name: 'Download',
@@ -209,6 +211,12 @@ export default {
     const getTypeName = (quality) => {
       return quality == 'flac24bit' ? 'FLAC Hires' : quality?.toUpperCase()
     }
+    const sourceNames = Object.fromEntries(musicSdk.sources.map(({ id, name }) => [id, name]))
+    const getSourceName = (downloadInfo) => {
+      const musicInfo = downloadInfo.metadata.musicInfo
+      const source = musicInfo.meta.toggleMusicInfo?.source ?? musicInfo.source
+      return sourceNames[source] ?? source
+    }
     return {
       listRef,
       list,
@@ -238,6 +246,7 @@ export default {
 
       getName,
       getTypeName,
+      getSourceName,
     }
   },
 }
@@ -278,6 +287,15 @@ export default {
 
   color: var(--color-button-font);
   opacity: .7;
+}
+
+.source {
+  color: var(--color-primary);
+  padding: 5px;
+  font-size: .8em;
+  line-height: 1.2;
+  opacity: .75;
+  display: inline-block;
 }
 
 .content {

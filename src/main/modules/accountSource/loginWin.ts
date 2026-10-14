@@ -1,6 +1,6 @@
 import { BrowserWindow } from 'electron'
 import { PLATFORM_CONFIGS } from './const'
-import { getSession, watchLoginCookie } from './sessions'
+import { getLoginCookie, getSession, watchLoginCookie } from './sessions'
 
 let loginWindow: BrowserWindow | null = null
 let pending: {
@@ -22,13 +22,15 @@ const closeWindow = () => {
 
 const settle = (cookieName: string) => {
   const task = pending
-  if (!task) return
+  if (!task || task.captureTimer) return
   if (task.timeoutTimer) clearTimeout(task.timeoutTimer)
   // 关键 cookie 已出现，稍等其余 cookie 落地再收网
   task.captureTimer = setTimeout(() => {
     pending = null
     task.cleanup()
     closeWindow()
+    // Chromium 对分区 cookie 的刷盘不及时，实测退出前都不落盘；登录后显式刷一次，避免应用重启丢登录
+    void getSession(task.platform).cookies.flushStore().catch(() => {})
     task.resolve(cookieName)
   }, 1500)
 }
@@ -90,6 +92,14 @@ export const openLogin = async(platform: LX.AccountSource.Platform) => {
     window.on('closed', () => {
       if (loginWindow == window) loginWindow = null
       cancelPending(new Error('登录窗口已关闭'))
+    })
+
+    // 已登录会话下打开登录页不会再触发 cookie 变化，加载完成后主动检测一次，
+    // 否则 Promise 一直挂到超时，用户只能手动关窗（报“登录窗口已关闭”）
+    window.webContents.on('did-finish-load', () => {
+      void getLoginCookie(platform).then(cookie => {
+        if (cookie) settle(cookie.name)
+      })
     })
 
     void window.loadURL(config.loginUrl)

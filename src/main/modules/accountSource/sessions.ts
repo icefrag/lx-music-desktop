@@ -22,10 +22,16 @@ const matchDomain = (host: string, domains: string[]) => {
   return domains.some(domain => host2 == domain || host2.endsWith(`.${domain}`))
 }
 
+const matchCookie = (config: typeof PLATFORM_CONFIGS[LX.AccountSource.Platform], cookie: { name: string, domain?: string, value: string }) => {
+  return config.loginCookieKeys.includes(cookie.name) &&
+    matchDomain(cookie.domain ?? '', config.cookieDomains) &&
+    (config.checkLoginCookieValue == null || config.checkLoginCookieValue(cookie))
+}
+
 export const getLoginCookie = async(platform: LX.AccountSource.Platform) => {
   const config = PLATFORM_CONFIGS[platform]
   const cookies = await getSession(platform).cookies.get({})
-  return cookies.find(cookie => config.loginCookieKeys.includes(cookie.name) && matchDomain(cookie.domain ?? '', config.cookieDomains))
+  return cookies.find(cookie => matchCookie(config, cookie))
 }
 
 export const hasLoginCookie = async(platform: LX.AccountSource.Platform) => {
@@ -61,8 +67,7 @@ export const watchLoginCookie = (
   let captured = false
   const handler = (_event: Electron.Event, cookie: Electron.Cookie, _cause: string, removed: boolean) => {
     if (removed || captured) return
-    if (!config.loginCookieKeys.includes(cookie.name)) return
-    if (!matchDomain(cookie.domain ?? '', config.cookieDomains)) return
+    if (!matchCookie(config, cookie)) return
     captured = true
     onCaptured(cookie.name)
   }
