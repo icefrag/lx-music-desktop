@@ -58,9 +58,12 @@ interface VkeyResponse {
   req_0?: {
     code?: number
     subcode?: number
+    // data 按模块形态不同：vkey 返回 midurlinfo/msg，歌曲详情返回 track_info
     data?: {
       code?: number
+      msg?: string
       midurlinfo?: Array<{ purl?: string, vkey?: string, filename?: string }>
+      track_info?: { file?: { media_mid?: string } }
     }
   }
 }
@@ -71,7 +74,7 @@ const mapVkeyError = (resBody: VkeyResponse): Error => {
   return new Error(`QQ音乐接口返回异常(code=${resBody.req_0?.code ?? resBody.code ?? '-'})`)
 }
 
-const signedRequest = async(payload: object, keyst: string, loginType: string): Promise<VkeyResponse> => {
+const signedRequest = async(payload: Record<string, unknown>, keyst: string, loginType: string): Promise<VkeyResponse> => {
   // 签名必须与实际发送的 JSON 字节一致（httpFetch 内部同为 JSON.stringify）
   const body = JSON.stringify(payload)
   const { body: resBody, statusCode } = await httpFetch<VkeyResponse>('https://u.y.qq.com/cgi-bin/musics.fcg', {

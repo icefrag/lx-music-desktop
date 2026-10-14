@@ -120,6 +120,8 @@ const kgRequest = async<T extends KgResponse>(url: string, params: Record<string
 
 // 网页端取链通道：play/songinfo，返回当前账号权限下的最佳可用音质直链
 interface WebSongInfo extends KgResponse {
+  // songinfo 端点的错误字段名是 err_code（与 KgResponse.errcode 属不同端点）
+  err_code?: number
   data?: { play_url?: string, bitrate?: number, timelen?: number, privilage?: number, encode_album_audio_id?: string }
 }
 
