@@ -188,7 +188,6 @@ const useDownloadMusic = () => {
     musicInfo = toNewMusicInfo(musicInfo)
     markRaw(musicInfo)
     await createDownloadTasks([musicInfo], quality, undefined, dir)
-    focusWindow()
   }
 }
 
