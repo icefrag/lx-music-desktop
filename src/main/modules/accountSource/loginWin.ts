@@ -1,6 +1,7 @@
 import { BrowserWindow } from 'electron'
 import { PLATFORM_CONFIGS } from './const'
 import { getLoginCookie, getSession, watchLoginCookie } from './sessions'
+import log from './log'
 
 let loginWindow: BrowserWindow | null = null
 let pending: {
@@ -24,6 +25,8 @@ const settle = (cookieName: string) => {
   const task = pending
   if (!task || task.captureTimer) return
   if (task.timeoutTimer) clearTimeout(task.timeoutTimer)
+  // 诊断日志：真机验证期观察登录捕获，稳定后移除
+  log.info(`[account-source:${task.platform}] 登录窗捕获 cookie: ${cookieName}，1.5s 后收网`)
   // 关键 cookie 已出现，稍等其余 cookie 落地再收网
   task.captureTimer = setTimeout(() => {
     pending = null
@@ -39,6 +42,8 @@ const cancelPending = (err: Error) => {
   const task = pending
   if (!task) return
   pending = null
+  // 诊断日志：真机验证期观察登录收尾原因，稳定后移除
+  log.info(`[account-source:${task.platform}] 登录流程结束: ${err.message}`)
   if (task.captureTimer) clearTimeout(task.captureTimer)
   if (task.timeoutTimer) clearTimeout(task.timeoutTimer)
   task.cleanup()

@@ -3,6 +3,7 @@ import { httpFetch } from '@main/utils/request'
 import { BROWSER_UA, getCookieHeader, getCookieMap } from '../sessions'
 import { parseKuGooCookie } from '../const'
 import { AuthExpiredError, RiskControlError } from '../errors'
+import log from '../log'
 
 // 酷狗移动端通道（v5/url）签名参数，复刻自开源项目 MakcRe/KuGouMusicApi
 const ANDROID_SIGN_SALT = 'OIlwieks28dk2k092lksi2UIkp'
@@ -72,7 +73,7 @@ const getCredential = async(): Promise<KgCredential> => {
   const mid = cookies.kg_mid ?? calcMid(`lx-account-source-kg:${userid}`)
   const dfid = cookies.kg_dfid ?? cookies.dfid ?? randomString(24)
   // 诊断日志：验证期观察捕获的 cookie 与提取的凭证，稳定后移除
-  console.log(`[account-source:kg] cookies: ${Object.keys(cookies).join(',') || '(空)'} | KuGoo.tLen=${(kuGoo.t ?? '').length} KuGoo.KugooID=${kuGoo.KugooID ?? '-'} | 独立t=${cookies.t ? `${cookies.t.slice(0, 6)}**` : '无'} KugooID=${cookies.KugooID ?? '-'} kg_mid=${cookies.kg_mid ? '有' : '无'} kg_dfid=${cookies.kg_dfid ? '有' : '无'} | userid=${userid} mid=${mid.slice(0, 8)}.. dfid=${dfid.slice(0, 8)}..`)
+  log.info(`[account-source:kg] cookies: ${Object.keys(cookies).join(',') || '(空)'} | KuGoo.tLen=${(kuGoo.t ?? '').length} KuGoo.KugooID=${kuGoo.KugooID ?? '-'} | 独立t=${cookies.t ? `${cookies.t.slice(0, 6)}**` : '无'} KugooID=${cookies.KugooID ?? '-'} kg_mid=${cookies.kg_mid ? '有' : '无'} kg_dfid=${cookies.kg_dfid ? '有' : '无'} | userid=${userid} mid=${mid.slice(0, 8)}.. dfid=${dfid.slice(0, 8)}..`)
   return { token, userid, mid, dfid }
 }
 
@@ -157,7 +158,7 @@ const webSonginfoRequest = async(songParams: Record<string, string | number>) =>
   })
   if (statusCode != 200) throw new Error(`酷狗音乐接口请求失败(${statusCode})`)
   // 诊断日志：真机验证期观察网页通道真实响应（v5/url 已有对应日志），稳定后移除
-  console.log(`[account-source:kg] songinfo(${JSON.stringify(songParams).slice(0, 120)}) ->`, JSON.stringify(body).slice(0, 500))
+  log.info(`[account-source:kg] songinfo(${JSON.stringify(songParams).slice(0, 120)}) ->`, JSON.stringify(body).slice(0, 500))
   return body
 }
 
@@ -198,7 +199,7 @@ export const validate = async() => {
   const nickname = kuGoo.UserName ?? cookies.UserName
   const body = await webSonginfoRequest(VALIDATE_PROBE_SONG)
   // 诊断日志：真机验证期观察校验探针响应，稳定后移除
-  console.log(`[account-source:kg] validate(songinfo) -> status=${body.status} err=${body.err_code ?? body.error_code ?? '-'}`)
+  log.info(`[account-source:kg] validate(songinfo) -> status=${body.status} err=${body.err_code ?? body.error_code ?? '-'}`)
   if (body.status == 1) return { ok: true, nickname }
   const err = body.err_code ?? body.error_code ?? body.status
   if (err == 30020 || err == 301) throw new AuthExpiredError('酷狗音乐登录凭证已失效')

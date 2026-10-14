@@ -10,6 +10,7 @@ import { cancelLogin, openLogin } from './loginWin'
 import { isCoolingDown, runThrottled } from './queue'
 import { resolvers } from './resolvers'
 import { clearSession, hasLoginCookie } from './sessions'
+import log from './log'
 import { getStatus, setStatusBroadcast, updateStatus } from './status'
 
 const assertPlatform = (platform: LX.AccountSource.Platform) => {
@@ -38,6 +39,9 @@ export const login = async(platform: LX.AccountSource.Platform) => {
   await openLogin(platform)
   // 登录窗口关闭后立即校验凭证有效性
   await validateAndUpdate(platform)
+  // 诊断日志：真机验证期观察登录后状态，稳定后移除
+  const status = getStatus()[platform]
+  log.info(`[account-source:${platform}] 登录完成: login=${status.login} status=${status.status} ${status.message ?? ''}`)
   return getStatus()
 }
 
@@ -72,7 +76,7 @@ export const requestUrl = async({ source, type, musicInfo }: LX.AccountSource.Ur
   if (isCoolingDown(source)) throw new Error(`risk_control: ${PLATFORM_CONFIGS[source].name}账号冷却中(风控触发)`)
   if (!await hasLoginCookie(source)) {
     // 诊断日志：链路未触发（cookie 未捕获）与 resolver 报错需可区分
-    console.log(`[account-source:${source}] 跳过：登录 cookie 未捕获，走兜底链`)
+    log.info(`[account-source:${source}] 跳过：登录 cookie 未捕获，走兜底链`)
     throw new Error(`未登录${PLATFORM_CONFIGS[source].name}`)
   }
   try {
@@ -96,7 +100,10 @@ export const requestUrl = async({ source, type, musicInfo }: LX.AccountSource.Ur
 
 const initStatus = async() => {
   for (const platform of ACCOUNT_SOURCE_PLATFORMS) {
-    updateStatus(platform, { login: await hasLoginCookie(platform) })
+    const login = await hasLoginCookie(platform)
+    // 诊断日志：真机验证期观察启动判定，稳定后移除
+    log.info(`[account-source:${platform}] 启动判定 login=${login}`)
+    updateStatus(platform, { login })
   }
   // 启动时对已有登录态的平台自动校验一次，状态不再停留在“待校验”
   // 探针走同平台队列节流，避免紧跟下载解析连发触发频率风控；冷却中的平台直接跳过（发也白发）
