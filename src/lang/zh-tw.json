@@ -75,6 +75,7 @@
   "download_status_risk_control_cooldown": "風控冷卻中，剩餘 {num} 分鐘",
   "download_status_via_third_party": "已用三方源(野花)",
   "download_status_spill_broken": "三方通道暫不可用，稍後自動重試",
+  "download_status_channel_wait_timeout": "通道多次恢復失敗，已停止重試",
   "download_status_write_queue": "資料寫入中（{num}）",
   "duplicate_list_tip": "你之前已收藏過清單「{name}」，是否需要更新裡面的歌曲？",
   "export": "匯出",

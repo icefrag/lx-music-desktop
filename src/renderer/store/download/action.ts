@@ -39,6 +39,9 @@ let accountInFlight = 0
 let spillInFlight = 0
 // 恢复期退回等待的任务的最早重试时间：到点前 getStartTask 不重选（唤醒交给恢复定时器）
 const channelWaitRetryAt = new Map<string, number>()
+// 恢复期等待轮数上限：通道反复恢复失败的任务最终报错，而非无限空转
+const CHANNEL_WAIT_MAX = 3
+const channelWaitCount = new Map<string, number>()
 
 // const initDownloadList = (list: LX.Download.ListItem[]) => {
 //   downloadList.splice(0, downloadList.length, ...list)
@@ -385,9 +388,17 @@ const handleStartTask = async(downloadInfo: LX.Download.ListItem) => {
     const urlResult = await getUrl(downloadInfo)
     console.log('[download] urlResult:', urlResult.url ? 'got url' : 'EMPTY', urlResult.errorCode ?? '', urlResult.url ?? '')
     if (!urlResult.url) {
-      // 通道暂不可用（账号冷却/三方熔断）：退回等待队列并设退避，恢复点由冷却 watcher/熔断定时器唤醒
+      // 通道暂不可用（账号冷却/三方熔断）：退回等待队列并设退避，恢复点由冷却 watcher/熔断定时器唤醒；
+      // 反复恢复失败的任务按轮数上限报错，避免注定失败的歌无限空转
       if (urlResult.wait) {
         runingTask.delete(downloadInfo.id)
+        const waitCount = (channelWaitCount.get(downloadInfo.id) ?? 0) + 1
+        if (waitCount > CHANNEL_WAIT_MAX) {
+          channelWaitCount.delete(downloadInfo.id)
+          handleError(downloadInfo, window.i18n.t('download_status_channel_wait_timeout'), urlResult.errorCode ?? 'unknown')
+          return
+        }
+        channelWaitCount.set(downloadInfo.id, waitCount)
         setStatus(downloadInfo, DOWNLOAD_STATUS.WAITING)
         markChannelWaiting(downloadInfo)
         const recoveries = [spillBrokenUntil()]
@@ -453,6 +464,7 @@ const handleStartTask = async(downloadInfo: LX.Download.ListItem) => {
   }), getProxy())
 }
 const startTask = async(downloadInfo: LX.Download.ListItem) => {
+  channelWaitCount.delete(downloadInfo.id)
   setStatus(downloadInfo, DOWNLOAD_STATUS.RUN)
   runingTask.set(downloadInfo.id, downloadInfo)
   void handleStartTask(downloadInfo)
@@ -648,6 +660,7 @@ export const removeDownloadTasks = async(ids: string[]) => {
       runingTask.delete(task.id)
     }
     channelWaitRetryAt.delete(task.id)
+    channelWaitCount.delete(task.id)
     return !idsSet.has(task.id)
   })
   downloadList.splice(0, downloadList.length)

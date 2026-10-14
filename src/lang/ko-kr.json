@@ -75,6 +75,7 @@
   "download_status_risk_control_cooldown": "리스크 컨트롤 쿨다운 중, {num}분 남음",
   "download_status_via_third_party": "서드파티 소스로 해석됨(야화)",
   "download_status_spill_broken": "서드파티 채널 사용 불가, 곧 자동 재시도",
+  "download_status_channel_wait_timeout": "채널 복구 반복 실패, 재시도 중지",
   "download_status_write_queue": "데이터 쓰는 중 ({num})",
   "duplicate_list_tip": "이미 \"{name}\" 목록을 담은 적이 있습니다. 목록의 곡을 업데이트하시겠습니까?",
   "export": "내보내기",
