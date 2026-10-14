@@ -51,12 +51,14 @@ const cancelPending = (err: Error) => {
   task.reject(err)
 }
 
-export const openLogin = async(platform: LX.AccountSource.Platform) => {
+export const openLogin = async(platform: LX.AccountSource.Platform, opts: { force?: boolean } = {}) => {
   return new Promise<string>((resolve, reject) => {
     cancelPending(new Error('已取消'))
 
     const config = PLATFORM_CONFIGS[platform]
-    const unwatch = watchLoginCookie(platform, settle)
+    // force（重新登录）：分区里还留着站点会话 cookie，自动收网会在页面加载后立刻关窗，
+    // 用户永远走不到「退出/重新认证」。force 下不做自动收网，由用户完成操作后手动关窗。
+    const unwatch = opts.force ? () => {} : watchLoginCookie(platform, settle)
 
     const window = new BrowserWindow({
       width: 1024,
@@ -96,16 +98,20 @@ export const openLogin = async(platform: LX.AccountSource.Platform) => {
 
     window.on('closed', () => {
       if (loginWindow == window) loginWindow = null
+      // force 模式下用户手动关窗即完成操作，顺手刷盘避免重启丢登录
+      if (opts.force) void getSession(platform).cookies.flushStore().catch(() => {})
       cancelPending(new Error('登录窗口已关闭'))
     })
 
     // 已登录会话下打开登录页不会再触发 cookie 变化，加载完成后主动检测一次，
     // 否则 Promise 一直挂到超时，用户只能手动关窗（报“登录窗口已关闭”）
-    window.webContents.on('did-finish-load', () => {
-      void getLoginCookie(platform).then(cookie => {
-        if (cookie) settle(cookie.name)
+    if (!opts.force) {
+      window.webContents.on('did-finish-load', () => {
+        void getLoginCookie(platform).then(cookie => {
+          if (cookie) settle(cookie.name)
+        })
       })
-    })
+    }
 
     void window.loadURL(config.loginUrl)
   })

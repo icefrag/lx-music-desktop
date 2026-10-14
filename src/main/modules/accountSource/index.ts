@@ -35,8 +35,13 @@ const validateAndUpdate = async(platform: LX.AccountSource.Platform) => {
   }
 }
 
-export const login = async(platform: LX.AccountSource.Platform) => {
-  await openLogin(platform)
+export const login = async(platform: LX.AccountSource.Platform, force = false) => {
+  try {
+    await openLogin(platform, { force })
+  } catch (err: any) {
+    // 手动关窗/超时也是一次登录尝试（force 重新登录依赖此路径）：关窗后照常校验，把真实状态刷出来
+    if (!/已取消|已关闭|登录超时/.test(err?.message ?? '')) throw err
+  }
   // 登录窗口关闭后立即校验凭证有效性
   await validateAndUpdate(platform)
   // 诊断日志：真机验证期观察登录后状态，稳定后移除
@@ -122,9 +127,9 @@ export default () => {
     return getStatus()
   })
 
-  mainHandle<LX.AccountSource.Platform, LX.AccountSource.StatusMap>(WIN_MAIN_RENDERER_EVENT_NAME.account_source_login, async({ params: platform }) => {
+  mainHandle<{ platform: LX.AccountSource.Platform, force?: boolean }, LX.AccountSource.StatusMap>(WIN_MAIN_RENDERER_EVENT_NAME.account_source_login, async({ params: { platform, force } }) => {
     assertPlatform(platform)
-    return login(platform)
+    return login(platform, force ?? false)
   })
 
   mainHandle(WIN_MAIN_RENDERER_EVENT_NAME.account_source_login_cancel, async() => {

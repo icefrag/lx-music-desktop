@@ -189,8 +189,8 @@ export const userApiRequestCancel = (requestKey: LX.UserApi.UserApiRequestCancel
 export const getAccountSourceStatus = async(): Promise<LX.AccountSource.StatusMap> => {
   return rendererInvoke<LX.AccountSource.StatusMap>(WIN_MAIN_RENDERER_EVENT_NAME.account_source_get_status)
 }
-export const loginAccountSource = async(platform: LX.AccountSource.Platform): Promise<LX.AccountSource.StatusMap> => {
-  return rendererInvoke<LX.AccountSource.Platform, LX.AccountSource.StatusMap>(WIN_MAIN_RENDERER_EVENT_NAME.account_source_login, platform)
+export const loginAccountSource = async(platform: LX.AccountSource.Platform, force = false): Promise<LX.AccountSource.StatusMap> => {
+  return rendererInvoke<{ platform: LX.AccountSource.Platform, force?: boolean }, LX.AccountSource.StatusMap>(WIN_MAIN_RENDERER_EVENT_NAME.account_source_login, { platform, force })
 }
 export const cancelLoginAccountSource = async(): Promise<void> => {
   return rendererInvoke(WIN_MAIN_RENDERER_EVENT_NAME.account_source_login_cancel)

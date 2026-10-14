@@ -61,7 +61,8 @@ export default {
     const handleLogin = async(id) => {
       loggingIn.value = id
       try {
-        await loginAccountSource(id)
+        // 已判定失效/待校验时走强制重登：老会话下登录页会秒关收网，用户走不到真正的重新认证
+        await loginAccountSource(id, status.value[id]?.status != 'ok')
       } catch (err) {
         if (!/已取消|已关闭/.test(err.message)) {
           void dialog({
