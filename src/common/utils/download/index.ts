@@ -62,7 +62,6 @@ export const createDownload = ({
   dl.on('completed', () => {
     onCompleted()
   }).on('error', (err: any) => {
-    if (err.message === 'socket hang up') return
     onError(err)
   }).on('start', () => {
     onStart()

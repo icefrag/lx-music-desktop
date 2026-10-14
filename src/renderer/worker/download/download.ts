@@ -21,6 +21,10 @@ const tryNum = new Map<string, number>()
 const taskActions = new Map<string, (action: LX.Download.DownloadTaskActions) => void>()
 const tasks = new Map<string, LX.Download.ListItem>()
 
+// 卡住/断流类错误：无数据超时、传输中断、连接被掐断。走「第1次同URL重连（断点续传），
+// 第2次 refreshUrl 换链接（双通道取链，开启换源设置则自动跨源）」的恢复阶梯
+const STALL_ERROR_MESSAGES = new Set(['download timeout', 'download terminated', 'aborted', 'socket hang up'])
+
 export const checkList = (list: LX.Download.ListItem[], musicInfo: LX.Music.MusicInfo, quality: LX.Quality, ext: string): boolean => {
   return list.some(s => s.id === musicInfo.id && (s.metadata.quality === quality || s.metadata.ext === ext))
 }
@@ -130,12 +134,15 @@ const createTask = async(downloadInfo: LX.Download.ListItem, savePath: string, s
       // console.log(tryNum[downloadInfo.id])
       let retryNum = tryNum.get(downloadInfo.id) ?? 0
       tryNum.set(downloadInfo.id, ++retryNum)
+      const isStall = STALL_ERROR_MESSAGES.has(err.message)
       if (retryNum > 2) {
         sendAction(downloadInfo.id, {
           action: 'error',
-          data: {
-            message: err.message,
-          },
+          data: isStall
+            ? { error: 'download_status_error_stalled' }
+            : {
+                message: err.message,
+              },
         })
         // dispatch('startTask')
         return
@@ -157,6 +164,16 @@ const createTask = async(downloadInfo: LX.Download.ListItem, savePath: string, s
       if (err.code == 'ENOTFOUND') {
         sendAction(downloadInfo.id, { action: 'refreshUrl' })
       } else {
+        if (isStall) {
+          sendAction(downloadInfo.id, {
+            action: 'statusTextKey',
+            data: { key: 'download_status_stall_retry', params: { num: retryNum } },
+          })
+          if (retryNum >= 2) {
+            sendAction(downloadInfo.id, { action: 'refreshUrl' })
+            return
+          }
+        }
         console.log('Download failed, Attempting Retry')
         setTimeout(() => {
           void dls.get(downloadInfo.id)?.start()

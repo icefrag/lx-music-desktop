@@ -375,6 +375,7 @@ const ERROR_CODE_MAP: Record<string, LX.Download.ErrorCode> = {
   download_status_error_check_path: 'check_path',
   download_status_error_response: 'response',
   download_status_error_write: 'write',
+  download_status_error_stalled: 'stalled',
 }
 const toErrorCode = (i18nKey?: string): LX.Download.ErrorCode => ERROR_CODE_MAP[i18nKey ?? ''] ?? 'unknown'
 
@@ -453,6 +454,9 @@ const handleStartTask = async(downloadInfo: LX.Download.ListItem) => {
         break
       case 'statusText':
         setStatusText(downloadInfo, event.data)
+        break
+      case 'statusTextKey':
+        setStatusText(downloadInfo, window.i18n.t(event.data.key, event.data.params))
         break
       case 'progress':
         setProgress(downloadInfo, event.data)

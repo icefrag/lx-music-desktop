@@ -23,6 +23,7 @@ declare global {
       | 'check_path'
       | 'response'
       | 'write'
+      | 'stalled'
       | 'unknown'
 
       interface ProgressInfo {
@@ -45,6 +46,7 @@ declare global {
       | DownloadTaskAction<'complete'>
       | DownloadTaskAction<'refreshUrl'>
       | DownloadTaskAction<'statusText', string>
+      | DownloadTaskAction<'statusTextKey', { key: keyof Message, params?: Record<string, string | number> }>
       | DownloadTaskAction<'progress', ProgressInfo>
       | DownloadTaskAction<'error', {
         error?: keyof Message

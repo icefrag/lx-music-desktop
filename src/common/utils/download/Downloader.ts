@@ -24,7 +24,7 @@ const defaultRequestOptions: Options['requestOptions'] = {
 }
 const defaultOptions: Options = {
   forceResume: true,
-  timeout: 20_000,
+  timeout: 10_000,
   requestOptions: { ...defaultRequestOptions },
 }
 
@@ -169,9 +169,11 @@ class Task extends EventEmitter {
           .on('end', () => {
             if (response.complete) {
               this.__handleComplete()
-            } else {
-              // this.__handleError(new Error('The connection was terminated while the message was still being sent'))
+            } else if (this.status == STATUS.stopped) {
               void this.stop()
+            } else {
+              // 服务器未传完就关闭连接：此前静默 stop() 会让任务永久卡在运行态
+              this.__handleError(new Error('download terminated'))
             }
           })
       })
@@ -249,11 +251,12 @@ class Task extends EventEmitter {
 
   __handleError(error: Error) {
     if (this.status == STATUS.error) return
+    // 主动暂停/完成后，清理过程中的连带错误（socket hang up、aborted 等）不外抛
+    if (this.status == STATUS.stopped || this.status == STATUS.completed) return
     this.status = STATUS.error
     this.__clearTimeout()
     this.__closeRequest()
     void this.__closeWriteStream()
-    if (error.message == 'aborted') return
     this.emit('error', error)
   }
 
@@ -270,6 +273,11 @@ class Task extends EventEmitter {
       } else {
         this.ws.close(err => {
           if (err) {
+            if (this.status == STATUS.stopped || this.status == STATUS.completed) {
+              this.ws = null
+              resolve()
+              return
+            }
             this.status = STATUS.error
             this.emit('error', err)
             reject(err)
