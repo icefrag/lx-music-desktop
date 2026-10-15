@@ -71,3 +71,6 @@ publish/assets
 publish/utils/githubToken.js
 
 src/**/*-internal.js
+
+# 池源测试脚本本地档：含付费源 key（聆澜 CERU_KEY），永不入库
+.scratch/source-pool/scripts/

@@ -75,6 +75,8 @@ declare global {
           apiSource?: string
           /** 解析通道：account=账号音源，yehua=三方野花（旧任务兼容值），其他=音源池成员名（ADR 0006）；缺省=非双通道路径 */
           sourceChannel?: string
+          /** 出链接的音源池成员 id（下载成败回灌熔断记账，issue source-pool/01）；账号/兜底链为空 */
+          poolMemberId?: string
           listId?: string
         }
       }

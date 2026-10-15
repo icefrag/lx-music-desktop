@@ -15,7 +15,8 @@ const saveData = () => {
   }))
 }
 
-// 内置源随应用分发：缺失则注入、版本/脚本不一致则覆盖（用户在应用内删除后重启会复原）
+// 内置源随应用分发：缺失则注入、版本/脚本不一致则覆盖（用户在应用内删除后重启会复原）；
+// 已从内置清单移除的条目随升级清理（否则僵尸内置会被防删守卫卡死，用户永远删不掉）
 const ensureBuiltinUserApis = (): boolean => {
   let changed = false
   for (const builtin of defaultUserApis) {
@@ -33,6 +34,14 @@ const ensureBuiltinUserApis = (): boolean => {
       scripts.set(builtin.id, builtin.script)
       changed = true
     }
+  }
+  for (let i = userApis!.length - 1; i >= 0; i--) {
+    const api = userApis![i]
+    if (!api.id.startsWith('user_api_builtin_')) continue
+    if (defaultUserApis.some(builtin => builtin.id == api.id)) continue
+    userApis!.splice(i, 1)
+    scripts.delete(api.id)
+    changed = true
   }
   return changed
 }

@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, session } from 'electron'
+import { app, BrowserWindow, dialog, session } from 'electron'
 import path from 'node:path'
 import { createTaskBarButtons, getWindowSizeInfo } from './utils'
 import { getOSVersion, getPlatform, isLinux, isMac, isWin } from '@common/utils'
@@ -17,6 +17,8 @@ const winEvent = () => {
       browserWindow!.setProgressBar(-1)
       // global.lx.mainWindowClosed = true
       global.lx.event_app.main_window_close()
+      // 显式退出，不依赖 window-all-closed 兜底：任何隐藏窗口关闭挂起都会卡死退出链（.scratch/openapi-quit/issues/01）
+      if (!isMac) app.quit()
       return
     }
 

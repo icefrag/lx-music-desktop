@@ -10,6 +10,7 @@ import { createAppEvent, createDislikeEvent, createListEvent } from '@main/event
 import { isMac, log } from '@common/utils'
 import createWorkers from './worker'
 import { migrateDBData } from './utils/migrate'
+import { stopServer } from '@main/modules/openApi'
 import { openDirInExplorer } from '@common/utils/electron'
 import { setProxyByHost } from '@common/utils/request'
 
@@ -215,6 +216,8 @@ export const listenerAppEvent = (startApp: () => void) => {
 
   app.on('before-quit', () => {
     global.lx.isSkipTrayQuit = true
+    // 开放 API 服务显式停机：端口释放不依赖进程死亡由 OS 回收（.scratch/openapi-quit/issues/01）
+    void stopServer()
   })
   app.on('window-all-closed', () => {
     if (isMac) return

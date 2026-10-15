@@ -133,14 +133,18 @@ export const createWindow = async(userApi: LX.UserApi.UserApiInfo) => {
 
 export const closeWindow = async() => {
   global.lx.event_app.off('updated_config', handleUpdateProxy)
-  if (!browserWindow) return
-  await Promise.all([
-    browserWindow.webContents.session.clearAuthCache(),
-    browserWindow.webContents.session.clearStorageData(),
-    browserWindow.webContents.session.clearCache(),
-  ])
-  browserWindow?.destroy()
+  const win = browserWindow
   browserWindow = null
+  if (!win) return
+  // 先销毁再清缓存：clear* 在会话忙时可能长时间挂起，await 会拖住窗口销毁，
+  // 残留窗口令 window-all-closed 不触发、退出链卡死（.scratch/openapi-quit/issues/01）
+  const { session } = win.webContents
+  win.destroy()
+  void Promise.all([
+    session.clearAuthCache(),
+    session.clearStorageData(),
+    session.clearCache(),
+  ]).catch(() => {})
 }
 
 export const sendEvent = <T = any>(name: string, params?: T) => {

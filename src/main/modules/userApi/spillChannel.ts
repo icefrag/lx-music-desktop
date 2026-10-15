@@ -68,7 +68,7 @@ const rejectAllRequests = (channel: MemberChannel, message: string) => {
   channel.initReject = null
 }
 
-const closeChannel = async(channel: MemberChannel) => {
+const closeChannel = (channel: MemberChannel) => {
   if (channel.idleTimer) {
     clearTimeout(channel.idleTimer)
     channel.idleTimer = null
@@ -77,15 +77,17 @@ const closeChannel = async(channel: MemberChannel) => {
   if (!channel.browserWindow) return
   const win = channel.browserWindow
   channel.browserWindow = null
-  await win.webContents.session.clearCache().catch(() => {})
+  // 先销毁再清缓存（同 userApi closeWindow）：clearCache 挂起不得拖住窗口销毁与退出链
+  const { session } = win.webContents
   win.destroy()
+  void session.clearCache().catch(() => {})
 }
 
 const armIdleTeardown = (channel: MemberChannel) => {
   if (channel.idleTimer) clearTimeout(channel.idleTimer)
   channel.idleTimer = setTimeout(() => {
     channel.idleTimer = null
-    void closeChannel(channel)
+    closeChannel(channel)
   }, IDLE_TEARDOWN_MS)
   channel.idleTimer.unref?.()
 }
@@ -197,7 +199,7 @@ const ensureChannel = async(channel: MemberChannel) => {
   try {
     await channel.pendingInit
   } catch (err) {
-    await closeChannel(channel)
+    closeChannel(channel)
     throw err
   } finally {
     channel.pendingInit = null
@@ -227,23 +229,29 @@ export const spillUrl = async({ memberId, source, type, musicInfo }: LX.AccountS
     clearTimeout(channel.idleTimer)
     channel.idleTimer = null
   }
+  // 诊断日志：池分发可观测性（issues/04）——哪个成员接了什么活、成败如何，主进程侧可见
+  console.log(`[pool-main] 解析请求 ${memberId} ${source}/${type} songmid=${musicInfo.songmid ?? '-'}`)
   try {
     await ensureChannel(channel)
     const result = await memberRequest(channel, { source, action: 'musicUrl', info: { type, musicInfo } })
     // preload 已校验 musicUrl 为 http(s) 字符串
+    console.log(`[pool-main] 解析成功 ${memberId} ${source}/${type} url=${String(result.data.url).slice(0, 70)}...`)
     return { url: result.data.url }
+  } catch (err) {
+    console.log(`[pool-main] 解析失败 ${memberId} ${source}/${type}: ${err instanceof Error ? err.message : err}`)
+    throw err
   } finally {
     // 有在途请求时不武装空闲销毁（memberRequest 已结束，仅剩排队场景由下一轮请求继续延迟）
     if (channel.requestQueue.size == 0) armIdleTeardown(channel)
   }
 }
 
-export const closePoolChannels = async(ids: string[]) => {
+export const closePoolChannels = (ids: string[]) => {
   for (const id of ids) {
     const channel = members.get(id)
     if (!channel) continue
     members.delete(id)
-    await closeChannel(channel)
+    closeChannel(channel)
   }
 }
 

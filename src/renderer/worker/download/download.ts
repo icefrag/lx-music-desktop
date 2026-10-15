@@ -21,9 +21,9 @@ const tryNum = new Map<string, number>()
 const taskActions = new Map<string, (action: LX.Download.DownloadTaskActions) => void>()
 const tasks = new Map<string, LX.Download.ListItem>()
 
-// 卡住/断流类错误：无数据超时、传输中断、连接被掐断。走「第1次同URL重连（断点续传），
+// 卡住/断流类错误：无数据超时、传输中断、连接被掐断、HTTP 层兜底超时。走「第1次同URL重连（断点续传），
 // 第2次 refreshUrl 换链接（双通道取链，开启换源设置则自动跨源）」的恢复阶梯
-const STALL_ERROR_MESSAGES = new Set(['download timeout', 'download terminated', 'aborted', 'socket hang up'])
+const STALL_ERROR_MESSAGES = new Set(['download timeout', 'download terminated', 'aborted', 'socket hang up', 'Request timeout'])
 
 export const checkList = (list: LX.Download.ListItem[], musicInfo: LX.Music.MusicInfo, quality: LX.Quality, ext: string): boolean => {
   return list.some(s => s.id === musicInfo.id && (s.metadata.quality === quality || s.metadata.ext === ext))
@@ -203,7 +203,9 @@ const createTask = async(downloadInfo: LX.Download.ListItem, savePath: string, s
       switch (response.statusCode) {
         case 401:
         case 403:
+        case 404:
         case 410:
+          // 404 与链接失效同类（模板源死链必现 404），同 URL 盲试无意义，直接换链（issue source-pool/01）
           sendAction(downloadInfo.id, { action: 'refreshUrl' })
           // commit('onError', { downloadInfo, errorMsg: '链接失效' })
           // refreshUrl.call(_this, commit, downloadInfo, rootState.setting.download.isUseOtherSource)
@@ -229,10 +231,11 @@ const createTask = async(downloadInfo: LX.Download.ListItem, savePath: string, s
       // console.log(status)
     },
     onStop() {
-      console.log('on stop')
-      // sendAction(downloadInfo.id, { action: 'pause' })
-      // commit('pauseTask', downloadInfo)
-      // dispatch('startTask')
+      // 孤儿 stop（服务器干净截断：complete 但字节数不足，Downloader 走 stopped 吞掉后续错误），
+      // 不换链任务会永久卡在 RUN（issue source-pool/03）。主动暂停/删除路径先删 taskActions
+      // 再 dl.stop()，此时 sendAction 已是 no-op，不会误触发换链
+      console.log('download stopped unexpectedly, refreshing url')
+      sendAction(downloadInfo.id, { action: 'refreshUrl' })
     },
   }
   // commit('setStatusText', { downloadInfo, text: '获取URL中...' })

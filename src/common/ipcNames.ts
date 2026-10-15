@@ -120,6 +120,7 @@ const modules = {
     account_source_request_url: 'account_source_request_url',
     account_source_spill_url: 'account_source_spill_url',
     account_source_pool_member: 'account_source_pool_member',
+    renderer_debug_log: 'renderer_debug_log',
     account_source_status: 'account_source_status',
 
     get_palyer_lyric: 'get_lyric',

@@ -3,7 +3,7 @@
 // （成员 × 平台）升级熔断（连败 3 次 → 停 1 分钟，翻倍 1→2→4→8 分钟封顶，同平台下载成功归零）、
 // 沙箱 init 后的能力上报。仅服务 128k（音质政策门槛在 providerPool 过滤）。
 // 成员能力（平台×128k）：内置静态表 + 沙箱 init 成功后的动态上报；导入成员上报前视为全能候选。
-import { getUserApiList, onPoolMemberInfo, requestAccountSpillUrl } from '@renderer/utils/ipc'
+import { getUserApiList, logToMain, onPoolMemberInfo, requestAccountSpillUrl } from '@renderer/utils/ipc'
 
 export const SPILL_API_ID = 'user_api_builtin_yehua'
 
@@ -115,7 +115,7 @@ const recordMemberFailure = (id: string, source: string) => {
     const breakMs = Math.min(BASE_BREAK_MS * 2 ** (p.breakStreak - 1), MAX_BREAK_MS)
     p.brokenUntil = Date.now() + breakMs
     p.failCount = 0
-    console.log(`[pool] ${memberLogName(id)} ${source} 连败熔断，停用 ${Math.round(breakMs / 1000)} 秒（第 ${p.breakStreak} 次）`)
+    logToMain(`[pool] ${memberLogName(id)} ${source} 连败熔断，停用 ${Math.round(breakMs / 1000)} 秒（第 ${p.breakStreak} 次）`)
   }
 }
 
@@ -159,7 +159,7 @@ export const poolMemberReportDownload = (memberId: string, source: string, ok: b
     return
   }
   recordMemberFailure(memberId, source)
-  console.log(`[pool] ${memberLogName(memberId)} ${source} 下载失败计 1 次（failCount=${platformRuntime(memberId, source).failCount}/${BREAK_THRESHOLD}）`)
+  logToMain(`[pool] ${memberLogName(memberId)} ${source} 下载失败计 1 次（failCount=${platformRuntime(memberId, source).failCount}/${BREAK_THRESHOLD}）`)
 }
 
 // 沙箱 init 成功后的能力上报：记录成员可服务 128k 的平台，后续选择据此过滤
@@ -168,5 +168,5 @@ onPoolMemberInfo(({ params: { id, sources } }) => {
     .filter(([, info]) => info.actions?.includes('musicUrl') && info.qualitys?.includes('128k'))
     .map(([platform]) => platform)
   runtime(id).capablePlatforms = platforms
-  console.log(`[pool] 成员能力上报 ${BUILTIN_MEMBERS[id]?.name ?? id}:`, platforms.join('/') || '无')
+  logToMain(`[pool] 成员能力上报 ${BUILTIN_MEMBERS[id]?.name ?? id}: ${platforms.join('/') || '无'}`)
 })

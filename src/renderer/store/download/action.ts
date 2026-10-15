@@ -234,8 +234,9 @@ const getUrl = async(downloadInfo: LX.Download.ListItem, isRefresh: boolean = fa
   const source = musicInfo.source
   let toggleMusicInfo = musicInfo.meta.toggleMusicInfo
   const toResult = async(promise: Promise<string>): Promise<{ url: string, errorCode?: LX.Download.ErrorCode }> => promise.then(url => ({ url }), err => {
-    // 诊断日志：真机验证期观察下载取链失败原因，稳定后移除
-    console.log('[download] getUrl failed:', err instanceof Error ? err.message : err)
+    const message = err instanceof Error ? err.message : String(err)
+    // 诊断日志：真机验证期观察下载取链失败原因，落盘供排查（稳定后移除）
+    logToMain(`[download] getUrl failed: ${message}`)
     const errorCode = isAccountExpiredError(err) ? 'account_expired' : isRiskControlError(err) ? 'risk_control' : undefined
     return { url: '', errorCode }
   })
@@ -395,7 +396,7 @@ const handleStartTask = async(downloadInfo: LX.Download.ListItem) => {
   if (!downloadInfo.metadata.url) {
     setStatusText(downloadInfo, window.i18n.t('download_status_url_getting'))
     const urlResult = await getUrl(downloadInfo)
-    console.log('[download] urlResult:', urlResult.url ? 'got url' : 'EMPTY', urlResult.errorCode ?? '', urlResult.url ?? '')
+    logToMain(`[download] ${downloadInfo.metadata.musicInfo.name}: urlResult=${urlResult.url ? 'got' : 'EMPTY'} code=${urlResult.errorCode ?? '-'} wait=${String(urlResult.wait ?? false)}`)
     if (!urlResult.url) {
       // 通道暂不可用（账号冷却/供给源熔断）：退回等待队列，恢复点自动唤醒
       if (urlResult.wait) {

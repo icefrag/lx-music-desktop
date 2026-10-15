@@ -227,6 +227,9 @@ export const onAccountSourceStatus = (listener: LX.IpcRendererEventListenerParam
     rendererOff(WIN_MAIN_RENDERER_EVENT_NAME.account_source_status, listener)
   }
 }
+export const logToMain = (line: string) => {
+  rendererSend(WIN_MAIN_RENDERER_EVENT_NAME.renderer_debug_log, line)
+}
 export const onPoolMemberInfo = (listener: LX.IpcRendererEventListenerParams<LX.AccountSource.PoolMemberInfo>): RemoveListener => {
   rendererOn(WIN_MAIN_RENDERER_EVENT_NAME.account_source_pool_member, listener)
   return () => {

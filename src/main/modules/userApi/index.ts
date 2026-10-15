@@ -23,7 +23,7 @@ export const removeApi = async(ids: string[]): Promise<LX.UserApi.UserApiInfo[]>
   if (removableIds.length) {
     handleRemoveApi(removableIds)
     // 被删的自定义源同时出池（ADR 0006）：销毁其沙箱，防僵尸成员继续接活
-    void closePoolChannels(removableIds)
+    closePoolChannels(removableIds)
   }
   return getUserApis()
 }
@@ -53,6 +53,6 @@ export default () => {
 
   global.lx.event_app.on('main_window_close', () => {
     void closeWindow()
-    void closePoolChannels([...getApiList().map(a => a.id)])
+    closePoolChannels([...getApiList().map(a => a.id)])
   })
 }
