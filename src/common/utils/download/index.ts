@@ -22,6 +22,8 @@ export interface Options {
   method?: DownloaderOptions['requestOptions']['method']
   headers?: DownloaderOptions['requestOptions']['headers']
   forceResume?: boolean
+  /** 总大小上限（字节）：响应头阶段超限即中止并报 download oversize（128k 音质谎报守卫，issue source-pool/05） */
+  maxTotalSize?: number
   proxy?: { host: string, port: number }
   onCompleted?: () => void
   onError?: (error: Error) => void
@@ -37,6 +39,7 @@ export const createDownload = ({
   fileName,
   method = 'get',
   forceResume,
+  maxTotalSize,
   proxy,
   // resumeTime = 5000,
   onCompleted = noop,
@@ -57,6 +60,7 @@ export const createDownload = ({
     },
 
     forceResume,
+    maxTotalSize,
   })
 
   dl.on('completed', () => {
