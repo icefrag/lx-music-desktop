@@ -79,7 +79,27 @@ const QUALITY_LEVELS: Partial<Record<LX.Quality, string[]>> = {
 }
 
 interface PlayerUrlData {
-  data?: Array<{ url?: string | null, level?: string, code?: number }>
+  data?: Array<{ url?: string | null, level?: string, code?: number, freeTrialInfo?: unknown }>
+}
+
+// 各档位请求码率上限：br 必须跟档位走。此前全局 br: 999000 会让服务端按账号权限
+// 无视 level 直接给无损（issue source-pool/05 的 wy 侧根源：128k 请求拿到 FLAC）
+const LEVEL_BR: Record<string, number> = {
+  standard: 128000,
+  exhigh: 320000,
+  lossless: 999000,
+  hires: 999000,
+}
+
+// 档位高低序：响应档位高于任务档位视为谎报（如 128k 收到 lossless），该次尝试作废；
+// 低于任务档位放行（能下到歌最重要）。未知档位不惩罚（尽力而为，与体积哨兵同哲学）
+const LEVEL_RANK: Record<string, number> = {
+  standard: 1,
+  exhigh: 2,
+  lossless: 3,
+  hires: 4,
+  atmos: 5,
+  master: 6,
 }
 
 export const validate = async() => {
@@ -92,15 +112,24 @@ export const validate = async() => {
 export const getMusicUrl = async(songInfo: Record<string, any>, quality: LX.Quality) => {
   const songId = songInfo.songmid
   if (!songId) throw new Error('缺少网易音乐歌曲ID')
-  for (const level of QUALITY_LEVELS[quality] ?? ['standard']) {
+  const levels = QUALITY_LEVELS[quality] ?? ['standard']
+  // 任务档位的天花板 = 降级链最高档，响应档位高于它才算谎报
+  const ceilingRank = LEVEL_RANK[levels[0]]
+  for (const level of levels) {
     const body = await weapiRequest<PlayerUrlData>('/weapi/song/enhance/player/url', {
       ids: [songId],
-      br: 999000,
+      br: LEVEL_BR[level] ?? 999000,
       level,
       csrf_token: '',
     })
     const item = body.data?.[0]
-    if (item?.url) return item.url
+    if (!item?.url) continue
+    // 试听片段 = 账号无该歌曲权益，降档重试也只会是试听，直接失败转移
+    if (item.freeTrialInfo) throw new Error('网易音乐返回试听片段(账号无该歌曲权益)')
+    // 谎报防御：本次尝试作废降档重试；链尽抛错交分发器转移下一个供给源
+    const rank = LEVEL_RANK[item.level ?? '']
+    if (ceilingRank != null && rank != null && rank > ceilingRank) continue
+    return item.url
   }
   throw new Error('网易音乐未返回可用音源')
 }
