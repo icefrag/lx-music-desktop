@@ -1,10 +1,11 @@
 [
   {
-    "id": "_yecao.decoded",
+    "id": "ikun_paid",
     "meta": {
-      "name": "野草🌾",
-      "version": "1",
-      "size": 9170
+      "name": "ikun音源[赞助][年卡]",
+      "version": "v26",
+      "author": "ikunshare",
+      "size": 3782
     },
     "init": {
       "ok": true,
@@ -15,7 +16,46 @@
             "musicUrl"
           ],
           "qualitys": [
-            "128k"
+            "128k",
+            "320k",
+            "flac",
+            "flac24bit"
+          ]
+        },
+        "kg": {
+          "type": "music",
+          "actions": [
+            "musicUrl"
+          ],
+          "qualitys": [
+            "128k",
+            "320k",
+            "flac",
+            "flac24bit"
+          ]
+        },
+        "tx": {
+          "type": "music",
+          "actions": [
+            "musicUrl"
+          ],
+          "qualitys": [
+            "128k",
+            "320k",
+            "flac",
+            "flac24bit"
+          ]
+        },
+        "wy": {
+          "type": "music",
+          "actions": [
+            "musicUrl"
+          ],
+          "qualitys": [
+            "128k",
+            "320k",
+            "flac",
+            "flac24bit"
           ]
         }
       }
@@ -28,17 +68,68 @@
             "musicUrl"
           ],
           "qualitys": [
-            "128k"
+            "128k",
+            "320k",
+            "flac",
+            "flac24bit"
+          ]
+        },
+        "test": "OK",
+        "url": "http://car-er.kuwo.cn/e3bd5d7e605cb9118ed14dea4c6d3bb8/6ad05837/resource/30106/trackmedia/"
+      },
+      "kg": {
+        "declared": {
+          "type": "music",
+          "actions": [
+            "musicUrl"
+          ],
+          "qualitys": [
+            "128k",
+            "320k",
+            "flac",
+            "flac24bit"
+          ]
+        },
+        "test": "OK",
+        "url": "http://fsdg360.hw.kugou.com/202610142035/991a27a1834c3578d9f6abf83a2daa75/v3/b3a52a7a958bf"
+      },
+      "tx": {
+        "declared": {
+          "type": "music",
+          "actions": [
+            "musicUrl"
+          ],
+          "qualitys": [
+            "128k",
+            "320k",
+            "flac",
+            "flac24bit"
+          ]
+        },
+        "test": "OK",
+        "url": "http://isure6.ptqqmusic.gitv.tv/M500003Qui1q2u1Zho.mp3?guid=0000000009b3bc63000001a13dfbdd"
+      },
+      "wy": {
+        "declared": {
+          "type": "music",
+          "actions": [
+            "musicUrl"
+          ],
+          "qualitys": [
+            "128k",
+            "320k",
+            "flac",
+            "flac24bit"
           ]
         },
         "test": "FAIL",
-        "message": "fetch failed"
+        "message": "获取URL失败, WyServerError(url为空): {\"data\":[{\"id\":186016,\"url\":null,\"br\":0,\"size\":0,\"md5\":null,\"code\":404,\"expi\":1200,\"type\":null,\"gain\":0.0,\"peak\":null,\"closedGain"
       }
     },
     "errors": [],
     "requestHandler": true,
     "logs": [
-      "inited: {\"kw\":{\"type\":\"music\",\"actions\":[\"musicUrl\"],\"qualitys\":[\"128k\"]}}"
+      "inited: {\"git\":{\"name\":\"git\",\"type\":\"music\",\"actions\":[\"musicUrl\"],\"qualitys\":[\"128k\",\"320k\",\"flac\"]},\"kg\":{\"name\":\"kg\",\"type\":\"music\",\"actions\":[\"musicUrl\"],\"qualitys\":[\"128k\",\"320k\",\"flac\",\"flac24bit\",\"hires\",\"atmos\",\"master\"]},\"kw\":{\"name\":\"kw\",\"type\":\"music\",\"actions\":[\"musicUrl\"],\"qualitys\":[\"128k\",\"32"
     ]
   }
 ]

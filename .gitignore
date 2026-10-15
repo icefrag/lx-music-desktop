@@ -74,3 +74,6 @@ src/**/*-internal.js
 
 # 池源测试脚本本地档：含付费源 key（聆澜 CERU_KEY），永不入库
 .scratch/source-pool/scripts/
+
+# 用户根目录的付费音源脚本：含 ikun key（IKM-***），永不入库
+/ikun-music-source.js
