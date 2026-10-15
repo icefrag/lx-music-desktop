@@ -53,6 +53,12 @@ const migrateV4 = (db: Database.Database) => {
   if (!existsCol) db.exec('ALTER TABLE "main"."download_list" ADD COLUMN "apiSource" TEXT;')
 }
 
+const migrateV5 = (db: Database.Database) => {
+  // download_list 增加实际出链供给源归因（开放 API /download-status 的 sourceChannel 字段，ADR 0007）
+  const existsCol = db.prepare('SELECT name FROM pragma_table_info(\'download_list\') WHERE name = \'sourceChannel\'').get()
+  if (!existsCol) db.exec('ALTER TABLE "main"."download_list" ADD COLUMN "sourceChannel" TEXT;')
+}
+
 export default (db: Database.Database) => {
   // PRAGMA user_version = x
   // console.log(db.prepare('PRAGMA user_version').get().user_version)
@@ -70,6 +76,9 @@ export default (db: Database.Database) => {
       // falls through
     case '4':
       migrateV4(db)
+      // falls through
+    case '5':
+      migrateV5(db)
       db.prepare('UPDATE "main"."db_info" SET "field_value"=@value WHERE "field_name"=@name').run({ name: 'version', value: DB_VERSION })
       break
   }

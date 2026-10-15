@@ -117,7 +117,7 @@ const handleDownloadStatus = async(res: http.ServerResponse<http.IncomingMessage
       statusText: item.statusText,
       errorCode: item.errorCode ?? null,
       apiSource: item.metadata.apiSource ?? null,
-      /** 实际出链供给源：account=账号 / yehua或成员名=脚本供给源；未解析为 null */
+      /** 实际出链供给源：account=账号 / yehua或成员名=脚本供给源；未经供给池出链为 null（含单链出口、兜底链与换源成功的情况） */
       sourceChannel: item.metadata.sourceChannel ?? null,
       fileName: item.metadata.fileName,
       filePath: item.metadata.filePath,

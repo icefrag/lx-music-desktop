@@ -1,6 +1,6 @@
 // 脚本供给源后端（ADR 0006/0007）：成员 = 内置源 + 用户导入的自定义源脚本，导入即入池、删源即出池。
 // 统一名册与调度在 providerPool.ts；本模块只管脚本供给源自身的事：节流（串行 2s）、
-// （成员 × 平台）升级熔断（连败 3 次 → 停 1 分钟，翻倍 1→2→4→8 分钟封顶，同平台成功归零）、
+// （成员 × 平台）升级熔断（连败 3 次 → 停 1 分钟，翻倍 1→2→4→8 分钟封顶，同平台下载成功归零）、
 // 沙箱 init 后的能力上报。仅服务 128k（音质政策门槛在 providerPool 过滤）。
 // 成员能力（平台×128k）：内置静态表 + 沙箱 init 成功后的动态上报；导入成员上报前视为全能候选。
 import { getUserApiList, onPoolMemberInfo, requestAccountSpillUrl } from '@renderer/utils/ipc'
@@ -20,7 +20,7 @@ const BUILTIN_MEMBERS: Record<string, { name: string, platforms: string[] }> = {
   user_api_builtin_yecao: { name: '野草', platforms: ['kw'] },
 }
 
-/** （成员 × 平台）独立的熔断计数：连败 3 次熔断，翻倍 1→2→4→8 分钟封顶，同平台成功归零 */
+/** （成员 × 平台）独立的熔断计数：连败 3 次熔断，翻倍 1→2→4→8 分钟封顶，同平台下载成功归零 */
 interface PlatformRuntime {
   failCount: number
   brokenUntil: number
@@ -135,7 +135,9 @@ export const resolveViaPoolMember = async(member: { id: string, name: string }, 
     m.lastRequestAt = Date.now()
     try {
       const { url } = await requestAccountSpillUrl({ source, type, musicInfo, memberId: member.id })
-      recordMemberSuccess(member.id, source)
+      // 解析成功不清零计数：解析成功 ≠ 直链可用（issue source-pool/01）。换链循环中若解析成功即归零，
+      // 下载层刚回灌的失败会被立刻洗掉，死链型成员的败绩永远在 0↔1 震荡、攒不到熔断阈值；
+      // 归零只由下载层成功（poolMemberReportDownload ok=true）触发
       return url
     } catch (err) {
       recordMemberFailure(member.id, source)

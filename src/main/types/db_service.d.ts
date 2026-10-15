@@ -73,6 +73,7 @@ declare namespace LX {
       filePath: string
       savePath: string | null
       apiSource: string | null
+      sourceChannel: string | null
       musicInfo: string
       position: number
     }

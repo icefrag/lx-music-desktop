@@ -7,7 +7,7 @@ import { getDB } from '../../db'
 export const createQueryStatement = () => {
   const db = getDB()
   return db.prepare<[]>(`
-    SELECT "id", "isComplate", "status", "statusText", "errorCode", "progress_downloaded", "progress_total", "url", "quality", "ext", "fileName", "filePath", "savePath", "apiSource", "musicInfo", "position"
+    SELECT "id", "isComplate", "status", "statusText", "errorCode", "progress_downloaded", "progress_total", "url", "quality", "ext", "fileName", "filePath", "savePath", "apiSource", "sourceChannel", "musicInfo", "position"
     FROM download_list
     ORDER BY "position" ASC
   `)
@@ -21,8 +21,8 @@ export const createInsertStatement = () => {
   const db = getDB()
   // OR IGNORE：重复 id（内存与库错位时重复添加任务）静默跳过，避免唯一约束报错且回滚整批
   return db.prepare<[LX.DBService.DownloadMusicInfo]>(`
-    INSERT OR IGNORE INTO "main"."download_list" ("id", "isComplate", "status", "statusText", "errorCode", "progress_downloaded", "progress_total", "url", "quality", "ext", "fileName", "filePath", "savePath", "apiSource", "musicInfo", "position")
-    VALUES (@id, @isComplate, @status, @statusText, @errorCode, @progress_downloaded, @progress_total, @url, @quality, @ext, @fileName, @filePath, @savePath, @apiSource, @musicInfo, @position)`)
+    INSERT OR IGNORE INTO "main"."download_list" ("id", "isComplate", "status", "statusText", "errorCode", "progress_downloaded", "progress_total", "url", "quality", "ext", "fileName", "filePath", "savePath", "apiSource", "sourceChannel", "musicInfo", "position")
+    VALUES (@id, @isComplate, @status, @statusText, @errorCode, @progress_downloaded, @progress_total, @url, @quality, @ext, @fileName, @filePath, @savePath, @apiSource, @sourceChannel, @musicInfo, @position)`)
 }
 
 /**
@@ -56,7 +56,7 @@ export const createUpdateStatement = () => {
   const db = getDB()
   return db.prepare<[LX.DBService.DownloadMusicInfo]>(`
     UPDATE "main"."download_list"
-    SET "isComplate"=@isComplate, "status"=@status, "statusText"=@statusText, "errorCode"=@errorCode, "progress_downloaded"=@progress_downloaded, "progress_total"=@progress_total, "url"=@url, "filePath"=@filePath, "savePath"=@savePath, "apiSource"=@apiSource
+    SET "isComplate"=@isComplate, "status"=@status, "statusText"=@statusText, "errorCode"=@errorCode, "progress_downloaded"=@progress_downloaded, "progress_total"=@progress_total, "url"=@url, "filePath"=@filePath, "savePath"=@savePath, "apiSource"=@apiSource, "sourceChannel"=@sourceChannel
     WHERE "id"=@id`)
 }
 

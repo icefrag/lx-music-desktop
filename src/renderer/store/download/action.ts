@@ -257,11 +257,12 @@ const getUrl = async(downloadInfo: LX.Download.ListItem, isRefresh: boolean = fa
   }
 
   // 无任何有能力的供给源（如非账号平台的高音质任务）：维持原单链（生效音源 + 可选换源），不进供给池
+  // isRefresh 穿透：换链流程进入本出口时必须绕过 URL 缓存，否则死链被原样返回、换链空转
   if (!dispatchEligible) {
     logToMain(`[dispatch] ${musicInfo.name} ${source}/${quality}: 单链出口(无可分发供给源) status=${JSON.stringify(accountSource.status[source as LX.AccountSource.Platform] ?? null)}`)
     return toResult(getMusicUrl({
       musicInfo,
-      isRefresh: false,
+      isRefresh,
       quality,
       allowToggleSource: appSetting['download.isUseOtherSource'],
     }))
@@ -310,10 +311,11 @@ const getUrl = async(downloadInfo: LX.Download.ListItem, isRefresh: boolean = fa
   }
 
   // 开启「下载失败换源」时的最后手段：允许换其他音乐源搜索同名歌
+  // isRefresh 穿透：换链时原链可能已被缓存，不绕过缓存会把死链当结果返回
   if (!sawRiskControl && appSetting['download.isUseOtherSource']) {
     const toggleResult = await toResult(getMusicUrl({
       musicInfo,
-      isRefresh: false,
+      isRefresh,
       quality,
       allowToggleSource: true,
     }))
