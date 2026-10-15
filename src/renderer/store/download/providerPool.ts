@@ -5,6 +5,7 @@
 // 脚本 = （成员×平台）升级熔断（自计数，见 spillChannel）。音质政策门槛：脚本仅 128k。
 import { getMusicUrl } from '@renderer/core/music/online'
 import { toOldMusicInfo } from '@renderer/utils'
+import { logToMain } from '@renderer/utils/ipc'
 import { accountSource } from '..'
 import {
   getRoster,
@@ -14,6 +15,7 @@ import {
   poolMemberBegin,
   poolMemberEnd,
   poolMemberInFlight,
+  poolMemberReportDownload,
   resolveViaPoolMember,
 } from './spillChannel'
 
@@ -74,6 +76,48 @@ export const pickProvider = async(source: string, quality: LX.Quality, excludeId
   return best
 }
 
+// 体积哨兵（issue source-pool/05）：部分供给源对 128k 请求直接回无损（实测下到 115MB FLAC）。
+// 解析拿到直链后 Range 探针取文件总长，与按时长估算的期望体积（128kbps）比较，
+// 超阈值按失败记账（计入该成员熔断）并抛错，由分发器转移下一个供给源。
+// 探针自身失败/拿不到总长不惩罚（放行下载）——哨兵是尽力而为的提前识别。
+const OVERSIZE_RATIO = 2
+const SENTINEL_TIMEOUT_MS = 8000
+
+const parseIntervalSec = (interval: string | null): number => {
+  if (!interval) return 0
+  const parts = interval.split(':').map(Number)
+  if (!parts.length || parts.some(n => !Number.isFinite(n))) return 0
+  return parts.reverse().reduce((acc, n, i) => acc + n * 60 ** i, 0)
+}
+
+const probeContentLength = async(url: string): Promise<number> => {
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => { ctrl.abort() }, SENTINEL_TIMEOUT_MS)
+  try {
+    // Range 探针比 HEAD 兼容性好：部分 CDN 对 HEAD 回 405 或缺 Content-Length，
+    // Content-Range: bytes 0-0/TOTAL 直接给总长；不支持 Range 的源回 200 + 全长 Content-Length
+    const resp = await fetch(url, { method: 'GET', headers: { Range: 'bytes=0-0' }, signal: ctrl.signal })
+    try {
+      const contentRange = resp.headers.get('content-range')
+      if (contentRange) {
+        const total = Number(contentRange.split('/')[1])
+        if (Number.isFinite(total) && total > 0) return total
+      }
+      if (resp.status == 200) {
+        const len = Number(resp.headers.get('content-length'))
+        if (Number.isFinite(len) && len > 0) return len
+      }
+      return 0
+    } finally {
+      void resp.body?.cancel()
+    }
+  } catch {
+    return 0
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 /** 经供给源解析下载直链，失败抛错。账号在途/脚本在途的记账都在此收口。
  * isRefresh：换链（refreshUrl）必须穿透 musicSdk 的 URL 缓存取新链接，否则死链缓存会让换链空转 */
 export const resolveViaProvider = async(provider: PoolProvider, musicInfo: LX.Music.MusicInfoOnline, quality: LX.Quality, isRefresh: boolean = false): Promise<string> => {
@@ -89,7 +133,22 @@ export const resolveViaProvider = async(provider: PoolProvider, musicInfo: LX.Mu
   }
   poolMemberBegin(provider.id)
   try {
-    return await resolveViaPoolMember(provider, provider.platform as LX.AccountSource.Platform, quality, toOldMusicInfo(musicInfo))
+    const url = await resolveViaPoolMember(provider, provider.platform as LX.AccountSource.Platform, quality, toOldMusicInfo(musicInfo))
+    if (quality == '128k') {
+      const seconds = parseIntervalSec(musicInfo.interval)
+      if (seconds > 0) {
+        const expected = seconds * 16000 // 128kbps ≈ 16KB/s
+        const total = await probeContentLength(url)
+        if (total > expected * OVERSIZE_RATIO) {
+          // 谎报按失败记账：惯犯成员走既有升级熔断自我隔离
+          poolMemberReportDownload(provider.id, provider.platform, false)
+          const mb = (n: number) => `${(n / 1048576).toFixed(1)}MB`
+          logToMain(`[pool] ${provider.name} ${provider.platform} 体积哨兵：128k 期望约 ${mb(expected)}，实际 ${mb(total)} → 拒绝，转移其他供给源`)
+          throw new Error(`供给源谎报音质：128k 应约 ${mb(expected)}，实际 ${mb(total)}`)
+        }
+      }
+    }
+    return url
   } finally {
     poolMemberEnd(provider.id)
   }
