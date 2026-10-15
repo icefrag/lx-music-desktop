@@ -1,6 +1,6 @@
 // 脚本供给源后端（ADR 0006/0007）：成员 = 内置源 + 用户导入的自定义源脚本，导入即入池、删源即出池。
-// 统一名册与调度在 providerPool.ts；本模块只管脚本供给源自身的事：节流（串行 2s）、
-// （成员 × 平台）升级熔断（连败 3 次 → 停 1 分钟，翻倍 1→2→4→8 分钟封顶，同平台下载成功归零）、
+// 统一名册与调度在 providerPool.ts；本模块只管脚本供给源自身的事：节流与升级熔断（均按 成员 × 平台
+// 记账——各平台各自串行 2s 互不排队；连败 3 次 → 停 1 分钟，翻倍 1→2→4→8 分钟封顶，同平台下载成功归零）、
 // 沙箱 init 后的能力上报。仅服务 128k（音质政策门槛在 providerPool 过滤）。
 // 成员能力（平台×128k）：内置静态表 + 沙箱 init 成功后的动态上报；导入成员上报前视为全能候选。
 import { getUserApiList, logToMain, onPoolMemberInfo, requestAccountSpillUrl } from '@renderer/utils/ipc'
@@ -20,8 +20,10 @@ const BUILTIN_MEMBERS: Record<string, { name: string, platforms: string[] }> = {
   user_api_builtin_yecao: { name: '野草', platforms: ['kw'] },
 }
 
-/** （成员 × 平台）独立的熔断计数：连败 3 次熔断，翻倍 1→2→4→8 分钟封顶，同平台下载成功归零 */
+/** （成员 × 平台）独立运行时状态：chain/lastRequestAt 为节流，其余为升级熔断，规则见文件头注释 */
 interface PlatformRuntime {
+  chain: Promise<unknown>
+  lastRequestAt: number
   failCount: number
   brokenUntil: number
   /** 连续熔断次数（期间同平台无成功）：决定本次停用时长 */
@@ -29,8 +31,6 @@ interface PlatformRuntime {
 }
 
 interface MemberRuntime {
-  chain: Promise<unknown>
-  lastRequestAt: number
   inFlight: number
   /** init 上报的可服务 128k 平台；null = 未知（视为全能候选） */
   capablePlatforms: string[] | null
@@ -42,7 +42,7 @@ const runtimes = new Map<string, MemberRuntime>()
 const runtime = (id: string): MemberRuntime => {
   let m = runtimes.get(id)
   if (!m) {
-    m = { chain: Promise.resolve(), lastRequestAt: 0, inFlight: 0, capablePlatforms: null, platforms: new Map() }
+    m = { inFlight: 0, capablePlatforms: null, platforms: new Map() }
     runtimes.set(id, m)
   }
   return m
@@ -52,7 +52,7 @@ const platformRuntime = (id: string, source: string): PlatformRuntime => {
   const m = runtime(id)
   let p = m.platforms.get(source)
   if (!p) {
-    p = { failCount: 0, brokenUntil: 0, breakStreak: 0 }
+    p = { chain: Promise.resolve(), lastRequestAt: 0, failCount: 0, brokenUntil: 0, breakStreak: 0 }
     m.platforms.set(source, p)
   }
   return p
@@ -126,13 +126,14 @@ const recordMemberSuccess = (id: string, source: string) => {
 }
 
 export const resolveViaPoolMember = async(member: { id: string, name: string }, source: LX.AccountSource.Platform, type: LX.Quality, musicInfo: Record<string, any>): Promise<string> => {
-  const m = runtime(member.id)
   if (isMemberBroken(member.id, source)) throw new Error('三方通道成员熔断中')
-  const run = m.chain.then(async() => {
+  // 节流与熔断均按（成员 × 平台）记账，规则见文件头注释
+  const p = platformRuntime(member.id, source)
+  const run = p.chain.then(async() => {
     if (isMemberBroken(member.id, source)) throw new Error('三方通道成员熔断中')
-    const wait = INTERVAL_MS - (Date.now() - m.lastRequestAt)
+    const wait = INTERVAL_MS - (Date.now() - p.lastRequestAt)
     if (wait > 0) await sleep(wait)
-    m.lastRequestAt = Date.now()
+    p.lastRequestAt = Date.now()
     try {
       const { url } = await requestAccountSpillUrl({ source, type, musicInfo, memberId: member.id })
       // 解析成功不清零计数：解析成功 ≠ 直链可用（issue source-pool/01）。换链循环中若解析成功即归零，
@@ -145,7 +146,7 @@ export const resolveViaPoolMember = async(member: { id: string, name: string }, 
     }
   })
   // 链上任一失败不断队列
-  m.chain = run.catch(() => {})
+  p.chain = run.catch(() => {})
   return run
 }
 
