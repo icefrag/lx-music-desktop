@@ -29,9 +29,9 @@ export interface PoolProvider {
 
 // 账号音源生效的平台（凭证登录且未过期）；解析由主进程账号队列串行限速保护，渲染层只记在途
 export const isAccountSourceActive = (source: string): boolean => {
-  if (source != 'kg' && source != 'tx' && source != 'wy') return false
+  if (source !== 'kg' && source !== 'tx' && source !== 'wy') return false
   const status = accountSource.status[source]
-  return status?.login && status.status != 'expired'
+  return status?.login && status.status !== 'expired'
 }
 
 export const isPlatformCoolingDown = (source: string): boolean => {
@@ -44,7 +44,7 @@ const accountInFlight = (source: string): number => accountInFlightByPlatform.ge
 
 /** 是否存在可服务（平台×音质）的供给源（只看能力不看健康；全恢复期也视为有资格，走等待路径） */
 export const isDispatchEligible = async(source: string, quality: LX.Quality): Promise<boolean> => {
-  if (quality == '128k') {
+  if (quality === '128k') {
     for (const member of await getRoster()) {
       if (isMemberCapable(member.id, source)) return true
     }
@@ -62,7 +62,7 @@ export const pickProvider = async(source: string, quality: LX.Quality, excludeId
       bestInFlight = inFlight
     }
   }
-  if (quality == '128k') {
+  if (quality === '128k') {
     for (const member of await getRoster()) {
       if (excludeIds.includes(member.id)) continue
       if (isMemberBroken(member.id, source)) continue
@@ -82,11 +82,16 @@ export const pickProvider = async(source: string, quality: LX.Quality, excludeId
 // 探针自身失败/拿不到总长不惩罚（放行下载）——哨兵是尽力而为的提前识别。
 const OVERSIZE_RATIO = 2
 const SENTINEL_TIMEOUT_MS = 8000
+const RATE_128K_BYTES_PER_SEC = 16000 // 128kbps ≈ 16KB/s
+const BYTES_PER_MB = 1048576
 
 const parseIntervalSec = (interval: string | null): number => {
   if (!interval) return 0
-  const parts = interval.split(':').map(Number)
-  if (!parts.length || parts.some(n => !Number.isFinite(n))) return 0
+  const segments = interval.split(':')
+  // 空/非数字/负数段视为脏数据：宁可不探测（放行下载）也不按失真时长给出期望体积，冤枉健康成员
+  if (segments.some(s => s.trim() === '')) return 0
+  const parts = segments.map(Number)
+  if (parts.some(n => !Number.isInteger(n) || n < 0)) return 0
   return parts.reverse().reduce((acc, n, i) => acc + n * 60 ** i, 0)
 }
 
@@ -103,15 +108,18 @@ const probeContentLength = async(url: string): Promise<number> => {
         const total = Number(contentRange.split('/')[1])
         if (Number.isFinite(total) && total > 0) return total
       }
-      if (resp.status == 200) {
+      if (resp.status === 200) {
         const len = Number(resp.headers.get('content-length'))
         if (Number.isFinite(len) && len > 0) return len
       }
       return 0
     } finally {
-      void resp.body?.cancel()
+      // cancel 可能因流已出错/锁定而 reject，吞掉避免 unhandled rejection
+      resp.body?.cancel().catch(() => {})
     }
-  } catch {
+  } catch (err) {
+    // 探针失败必须留痕：若系统性失败，哨兵会静默退化为常关，与「没有谎报源」不可区分
+    logToMain(`[pool] 体积哨兵探针失败（放行下载）: ${err instanceof Error ? err.message : String(err)}`)
     return 0
   } finally {
     clearTimeout(timer)
@@ -121,7 +129,7 @@ const probeContentLength = async(url: string): Promise<number> => {
 /** 经供给源解析下载直链，失败抛错。账号在途/脚本在途的记账都在此收口。
  * isRefresh：换链（refreshUrl）必须穿透 musicSdk 的 URL 缓存取新链接，否则死链缓存会让换链空转 */
 export const resolveViaProvider = async(provider: PoolProvider, musicInfo: LX.Music.MusicInfoOnline, quality: LX.Quality, isRefresh: boolean = false): Promise<string> => {
-  if (provider.kind == 'account') {
+  if (provider.kind === 'account') {
     accountInFlightByPlatform.set(provider.platform, accountInFlight(provider.platform) + 1)
     try {
       // 账号链路（musicSdk 账号 API）：内含「账号失败落生效音源」的内联兜底（0005 延续）；
@@ -134,15 +142,15 @@ export const resolveViaProvider = async(provider: PoolProvider, musicInfo: LX.Mu
   poolMemberBegin(provider.id)
   try {
     const url = await resolveViaPoolMember(provider, provider.platform as LX.AccountSource.Platform, quality, toOldMusicInfo(musicInfo))
-    if (quality == '128k') {
+    if (quality === '128k') {
       const seconds = parseIntervalSec(musicInfo.interval)
       if (seconds > 0) {
-        const expected = seconds * 16000 // 128kbps ≈ 16KB/s
+        const expected = seconds * RATE_128K_BYTES_PER_SEC
         const total = await probeContentLength(url)
         if (total > expected * OVERSIZE_RATIO) {
           // 谎报按失败记账：惯犯成员走既有升级熔断自我隔离
           poolMemberReportDownload(provider.id, provider.platform, false)
-          const mb = (n: number) => `${(n / 1048576).toFixed(1)}MB`
+          const mb = (n: number) => `${(n / BYTES_PER_MB).toFixed(1)}MB`
           logToMain(`[pool] ${provider.name} ${provider.platform} 体积哨兵：128k 期望约 ${mb(expected)}，实际 ${mb(total)} → 拒绝，转移其他供给源`)
           throw new Error(`供给源谎报音质：128k 应约 ${mb(expected)}，实际 ${mb(total)}`)
         }
@@ -158,9 +166,9 @@ export const resolveViaProvider = async(provider: PoolProvider, musicInfo: LX.Mu
 export const earliestRecovery = (source: string, quality: LX.Quality): number => {
   let earliest = 0
   const consider = (at: number) => {
-    if (at > Date.now() && (earliest == 0 || at < earliest)) earliest = at
+    if (at > Date.now() && (earliest === 0 || at < earliest)) earliest = at
   }
-  if (quality == '128k') consider(poolEarliestRecovery(source))
+  if (quality === '128k') consider(poolEarliestRecovery(source))
   if (isAccountSourceActive(source)) consider(accountSource.status[source as LX.AccountSource.Platform]?.cooldownUntil ?? 0)
   return earliest
 }

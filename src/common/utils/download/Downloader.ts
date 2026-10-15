@@ -9,6 +9,8 @@ import { request, type Options as RequestOptions } from './request'
 export interface Options {
   forceResume: boolean
   timeout: number
+  /** 总大小上限（字节）：响应头阶段超限立即中止并报 download oversize，供 128k 音质谎报守卫使用 */
+  maxTotalSize?: number
   requestOptions: RequestOptions
 }
 
@@ -208,6 +210,12 @@ class Task extends EventEmitter {
     }
     this.progress.total += this.progress.downloaded
     this.statsEstimate.prevBytes = this.progress.downloaded
+    // 128k 总大小守卫（issue source-pool/05）：第二道闸——任何通道出的链接，响应头阶段即可知总大小，
+    // 超限在此中止（一字节未写），由 worker 映射为换链阶梯
+    if (this.options.maxTotalSize && this.progress.total > this.options.maxTotalSize) {
+      this.__handleError(new Error('download oversize'))
+      return
+    }
     if (!this.chunkInfo.path) {
       this.__handleError(new Error('Chunk save Path is not set.'))
       return

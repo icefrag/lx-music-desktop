@@ -25,6 +25,21 @@ const tasks = new Map<string, LX.Download.ListItem>()
 // 第2次 refreshUrl 换链接（双通道取链，开启换源设置则自动跨源）」的恢复阶梯
 const STALL_ERROR_MESSAGES = new Set(['download timeout', 'download terminated', 'aborted', 'socket hang up', 'Request timeout'])
 
+// 与 store/download/providerPool.parseIntervalSec 同逻辑。worker 是独立 Worker 上下文，
+// 不能反向 import store 模块（会拖入 vue/store 依赖链），故此处复制
+const parseIntervalSec = (interval: string | null | undefined): number => {
+  if (!interval) return 0
+  const segments = interval.split(':')
+  if (segments.some(s => s.trim() === '')) return 0
+  const parts = segments.map(Number)
+  if (parts.some(n => !Number.isInteger(n) || n < 0)) return 0
+  return parts.reverse().reduce((acc, n, i) => acc + n * 60 ** i, 0)
+}
+
+// 128k 音质谎报守卫参数（与解析层体积哨兵同参，issue source-pool/05）
+const OVERSIZE_RATIO = 2
+const RATE_128K_BYTES_PER_SEC = 16000 // 128kbps ≈ 16KB/s
+
 export const checkList = (list: LX.Download.ListItem[], musicInfo: LX.Music.MusicInfo, quality: LX.Quality, ext: string): boolean => {
   return list.some(s => s.id === musicInfo.id && (s.metadata.quality === quality || s.metadata.ext === ext))
 }
@@ -102,12 +117,17 @@ const createTask = async(downloadInfo: LX.Download.ListItem, savePath: string, s
     }
   }
 
+  // 128k 总大小守卫上限（issue source-pool/05）：任何通道出的链接，响应头阶段超期望体积即中止
+  const intervalSeconds = downloadInfo.metadata.quality == '128k'
+    ? parseIntervalSec(downloadInfo.metadata.musicInfo.interval)
+    : 0
   const downloadOptions: DownloadOptions = {
     url: downloadInfo.metadata.url ?? '',
     path: savePath,
     fileName: downloadInfo.metadata.fileName,
     method: 'get',
     proxy,
+    maxTotalSize: intervalSeconds > 0 ? intervalSeconds * RATE_128K_BYTES_PER_SEC * OVERSIZE_RATIO : undefined,
     onCompleted() {
       // if (downloadInfo.progress.progress != '100.00') {
       //   delete.get(downloadInfo.id)?
@@ -129,6 +149,17 @@ const createTask = async(downloadInfo: LX.Download.ListItem, savePath: string, s
           },
           // data: `歌曲保存位置被占用或没有写入权限，请尝试更改歌曲保存目录或重启软件或重启电脑，错误详情：${err.message as string}`,
         })
+        return
+      }
+      // 128k 总大小守卫触发（issue source-pool/05）：同 URL 重试无意义，直接换链；计次封顶防死循环
+      if (err.message == 'download oversize') {
+        const oversizeRetry = (tryNum.get(downloadInfo.id) ?? 0) + 1
+        tryNum.set(downloadInfo.id, oversizeRetry)
+        if (oversizeRetry > 2) {
+          sendAction(downloadInfo.id, { action: 'error', data: { error: 'download_status_error_stalled' } })
+          return
+        }
+        sendAction(downloadInfo.id, { action: 'refreshUrl' })
         return
       }
       // console.log(tryNum[downloadInfo.id])
