@@ -1,0 +1,44 @@
+[
+  {
+    "id": "_yecao.decoded",
+    "meta": {
+      "name": "野草🌾",
+      "version": "1",
+      "size": 9170
+    },
+    "init": {
+      "ok": true,
+      "sources": {
+        "kw": {
+          "type": "music",
+          "actions": [
+            "musicUrl"
+          ],
+          "qualitys": [
+            "128k"
+          ]
+        }
+      }
+    },
+    "platforms": {
+      "kw": {
+        "declared": {
+          "type": "music",
+          "actions": [
+            "musicUrl"
+          ],
+          "qualitys": [
+            "128k"
+          ]
+        },
+        "test": "FAIL",
+        "message": "fetch failed"
+      }
+    },
+    "errors": [],
+    "requestHandler": true,
+    "logs": [
+      "inited: {\"kw\":{\"type\":\"music\",\"actions\":[\"musicUrl\"],\"qualitys\":[\"128k\"]}}"
+    ]
+  }
+]
