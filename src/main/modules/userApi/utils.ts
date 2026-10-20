@@ -1,4 +1,3 @@
-import { userApis as defaultUserApis } from './config'
 import { STORE_NAMES } from '@common/constants'
 import getStore from '@main/utils/store'
 import zlib from 'node:zlib'
@@ -13,37 +12,6 @@ const saveData = () => {
       script: scripts.get(api.id),
     }
   }))
-}
-
-// 内置源随应用分发：缺失则注入、版本/脚本不一致则覆盖（用户在应用内删除后重启会复原）；
-// 已从内置清单移除的条目随升级清理（否则僵尸内置会被防删守卫卡死，用户永远删不掉）
-const ensureBuiltinUserApis = (): boolean => {
-  let changed = false
-  for (const builtin of defaultUserApis) {
-    const index = userApis!.findIndex(api => api.id == builtin.id)
-    const existing = index > -1 ? userApis![index] : null
-    if (!existing) {
-      userApis!.push({ ...builtin, allowShowUpdateAlert: builtin.allowShowUpdateAlert ?? true })
-      scripts.set(builtin.id, builtin.script)
-      changed = true
-      continue
-    }
-    const existingScript = scripts.get(builtin.id)
-    if (existingScript != builtin.script || existing.version != builtin.version || existing.name != builtin.name) {
-      userApis![index] = { ...existing, name: builtin.name, version: builtin.version, description: builtin.description }
-      scripts.set(builtin.id, builtin.script)
-      changed = true
-    }
-  }
-  for (let i = userApis!.length - 1; i >= 0; i--) {
-    const api = userApis![i]
-    if (!api.id.startsWith('user_api_builtin_')) continue
-    if (defaultUserApis.some(builtin => builtin.id == api.id)) continue
-    userApis!.splice(i, 1)
-    scripts.delete(api.id)
-    changed = true
-  }
-  return changed
 }
 
 export const getUserApis = (): LX.UserApi.UserApiInfo[] => {
@@ -68,7 +36,7 @@ export const getUserApis = (): LX.UserApi.UserApiInfo[] => {
       }
     }
   } else {
-    infoFull = defaultUserApis
+    infoFull = []
     requiredUpdate = true
   }
   userApis = infoFull.map(api => {
@@ -77,7 +45,6 @@ export const getUserApis = (): LX.UserApi.UserApiInfo[] => {
     scripts.set(api.id, script)
     return info
   })
-  requiredUpdate ||= ensureBuiltinUserApis()
   if (requiredUpdate) saveData()
   return userApis
 }

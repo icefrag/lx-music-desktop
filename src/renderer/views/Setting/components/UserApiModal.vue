@@ -12,7 +12,7 @@ material-modal(:show="modelValue" bg-close teleport="#view" @close="handleClose"
           p {{ api.description }}
           div
             base-checkbox(:id="`user_api_${api.id}`" v-model="api.allowShowUpdateAlert" :class="$style.checkbox" :label="$t('user_api__allow_show_update_alert')" @change="handleChangeAllowUpdateAlert(api, $event)")
-        base-btn(v-if="!api.id.startsWith('user_api_builtin_')" :class="$style.listBtn" outline :aria-label="$t('user_api__btn_remove')" @click.stop="handleRemove(index)")
+        base-btn(:class="$style.listBtn" outline :aria-label="$t('user_api__btn_remove')" @click.stop="handleRemove(index)")
           svg(v-once version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 212.982 212.982" space="preserve")
             use(xlink:href="#icon-delete")
     div(v-else :class="$style.content")
@@ -99,8 +99,6 @@ export default {
     async handleRemove(index) {
       const api = this.apiList[index]
       if (!api) return
-      // 内置音源不可删除（与主进程 removeApi 的兜底一致）
-      if (api.id.startsWith('user_api_builtin_')) return
       if (appSetting['common.apiSource'] == api.id) {
         let backApi = apiSourceInfo.find(api => !api.disabled)
         if (!backApi) backApi = userApi.list[0]

@@ -12,8 +12,6 @@ import { getProxy } from './main'
 import { getScript, getUserApis } from './utils'
 import { sendPoolMemberInfo } from '@main/modules/winMain/rendererEvent/userApi'
 
-export const SPILL_API_ID = 'user_api_builtin_yehua'
-
 const INIT_TIMEOUT_MS = 20_000
 const REQUEST_TIMEOUT_MS = 20_000
 const IDLE_TEARDOWN_MS = 10 * 60 * 1000
