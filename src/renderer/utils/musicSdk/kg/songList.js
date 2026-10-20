@@ -472,25 +472,24 @@ export default {
       },
     }
   },
-  createGetListDetail2Task(id, total) {
-    let tasks = []
-    let page = 0
-    while (total) {
-      const limit = total > 300 ? 300 : total
-      total -= limit
-      page += 1
-      const params = 'appid=1058&global_specialid=' + id + '&specialid=0&plat=0&version=8000&page=' + page + '&pagesize=' + limit + '&srcappid=2919&clientver=20000&clienttime=1586163263991&mid=1586163263991&uuid=1586163263991&dfid=-'
-      tasks.push(this.createHttp(`https://mobiles.kugou.com/api/v5/special/song_v2?${params}&signature=${signatureParams(params, 'web')}`, {
-        headers: {
-          mid: '1586163263991',
-          Referer: 'https://m3ws.kugou.com/share/index.php',
-          'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 11_0 like Mac OS X) AppleWebKit/604.1.38 (KHTML, like Gecko) Version/11.0 Mobile/15A372 Safari/604.1',
-          dfid: '-',
-          clienttime: '1586163263991',
-        },
-      }).then(data => data.info))
-    }
-    return Promise.all(tasks).then(([...datas]) => datas.flat())
+  // 歌单取歌：网关 nofilt 端点，免登录（2026-10-20：旧 mobiles v5 song_v2 被酷狗整体关停，恒报 20028，
+  // 见 .scratch/kg-songlist-gcid/issues/01）。android 签名与 signatureParams 同盐，pagesize 300 / begin_idx 翻页已实测
+  getListDetail2Page(id, begin) {
+    const mid = 'd4f1a2c3b8097e654a1f2b3c4d5e6f70'
+    const clienttime = Math.floor(Date.now() / 1000)
+    const params = 'appid=1005&area_code=1&begin_idx=' + begin + '&clienttime=' + clienttime + '&clientver=20489&dfid=-&extend_fields=abtags,hot_cmt,popularization&global_collection_id=' + id + '&mid=' + mid + '&mode=1&pagesize=300&personal_switch=1&plat=1&type=1&uuid=-'
+    return this.createHttp(`https://gateway.kugou.com/pubsongs/v2/get_other_list_file_nofilt?${params}&signature=${signatureParams(params, 'android')}`, {
+      headers: {
+        'User-Agent': 'Android15-1070-11083-46-0-DiscoveryDRADProtocol-wifi',
+        dfid: '-',
+        mid,
+        clienttime: String(clienttime),
+        'kg-rc': '1',
+        'kg-thash': '5d816a0',
+        'kg-rec': '1',
+        'kg-rf': 'B9EDA08A64250DEFFBCADDEE00F8F25F',
+      },
+    })
   },
   async getListDetailByGcidChain(id, chain) {
     const params = 'srcappid=2919&clientver=20000&clienttime=1789566751657&mid=1789566751657&uuid=1789566751657&dfid=-&listid=15&type=0&pagesize=50&global_collection_id=' + id + '&page=1&share_type=collect&appid=1058&chain=' + chain
@@ -542,18 +541,19 @@ export default {
   async getUserListDetail2(global_collection_id) {
     let id = global_collection_id
     if (id.length > 1000) throw new Error('get list error')
-    const params = 'appid=1058&specialid=0&global_specialid=' + id + '&format=jsonp&srcappid=2919&clientver=20000&clienttime=1586163242519&mid=1586163242519&uuid=1586163242519&dfid=-'
-    let info = await this.createHttp(`https://mobiles.kugou.com/api/v5/special/info_v2?${params}&signature=${signatureParams(params, 'web')}`, {
-      headers: {
-        mid: '1586163242519',
-        Referer: 'https://m3ws.kugou.com/share/index.php',
-        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 11_0 like Mac OS X) AppleWebKit/604.1.38 (KHTML, like Gecko) Version/11.0 Mobile/15A372 Safari/604.1',
-        dfid: '-',
-        clienttime: '1586163242519',
-      },
-    })
-    const songInfo = await this.createGetListDetail2Task(id, info.songcount)
-    let list = await this.getMusicInfos(songInfo)
+    // 首页同时携带歌单元信息（list_info）与 count，不再单独走 info_v2
+    const first = await this.getListDetail2Page(id, 0)
+    const listInfo = first.list_info
+    let songs = first.songs
+    const total = first.count ?? songs.length
+    let tasks = []
+    let begin = songs.length
+    while (begin < total) {
+      tasks.push(this.getListDetail2Page(id, begin).then(data => data.songs))
+      begin += 300
+    }
+    if (tasks.length) songs = songs.concat(...await Promise.all(tasks))
+    let list = await this.getMusicInfos(songs)
     // console.log(info, songInfo, list)
     return {
       list,
@@ -562,11 +562,10 @@ export default {
       total: list.length,
       source: 'kg',
       info: {
-        name: info.specialname,
-        img: info.imgurl && info.imgurl.replace('{size}', 240),
-        desc: info.intro,
-        author: info.nickname,
-        play_count: formatPlayCount(info.playcount),
+        name: listInfo.name,
+        img: listInfo.pic && listInfo.pic.replace('{size}', 240),
+        desc: listInfo.intro,
+        author: listInfo.list_create_username,
       },
     }
   },
